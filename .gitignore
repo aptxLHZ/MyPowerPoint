@@ -1,0 +1,15 @@
+# Compiled class files
+bin/
+*.class
+
+# IDE settings
+.vscode/
+*.iml
+
+# Log files
+*.log
+
+# Package files
+*.jar
+*.war
+*.ear
