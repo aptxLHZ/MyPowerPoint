@@ -6,38 +6,77 @@ import com.myppt.model.Slide;
 import com.myppt.model.AbstractSlideObject;
 
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
 
-/**
- * 这是我们的核心绘图区域。
- * 所有幻灯片元素都在这个面板上被绘制出来。
- */
 public class CanvasPanel extends JPanel {
     private Presentation presentation;
     private int currentSlideIndex;
+    
+    private double scale = 1.0;
+
+    // [!] 核心修改: 定义一个巨大的虚拟画布尺寸
+    public static final int VIRTUAL_CANVAS_WIDTH = 10000;
+    public static final int VIRTUAL_CANVAS_HEIGHT = 10000;
 
     public CanvasPanel(Presentation presentation) {
         this.presentation = presentation;
-        this.currentSlideIndex = 0; // 默认显示第一页
-        setBackground(Color.WHITE);
+        this.currentSlideIndex = 0;
+        setBackground(Color.LIGHT_GRAY);
     }
 
-    /**
-     * 这是Swing中最重要的绘图方法。
-     * 当我们调用 repaint() 时，Swing最终会调用这个方法来重绘组件。
-     * 我们绝不能直接调用它，而是通过调用 repaint() 来触发它。
-     */
+    public void setScale(double scale) {
+        this.scale = scale;
+        // [!] 修改点: 当缩放时，需要 revalidate 以更新滚动条
+        this.revalidate();
+        this.repaint();
+    }
+
+    // [!] 核心修改: 恢复 getPreferredSize，并使用巨大的虚拟尺寸乘以缩放比例
+    @Override
+    public Dimension getPreferredSize() {
+        return new Dimension(
+            (int)(VIRTUAL_CANVAS_WIDTH * scale), 
+            (int)(VIRTUAL_CANVAS_HEIGHT * scale)
+        );
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
-        super.paintComponent(g); // 必须先调用父类的方法，它会清空画布
+        super.paintComponent(g);
 
-        // 获取当前要显示的幻灯片页面
+        Graphics2D g2d = (Graphics2D) g;
+        java.awt.geom.AffineTransform oldTransform = g2d.getTransform();
+
+        // --- [!] 核心修改: 计算页面在巨大画布中心的位置 ---
+        // 1. 计算页面左上角在虚拟画布中的坐标
+        int pageX = (VIRTUAL_CANVAS_WIDTH - Slide.PAGE_WIDTH) / 2;
+        int pageY = (VIRTUAL_CANVAS_HEIGHT - Slide.PAGE_HEIGHT) / 2;
+
+        // 2. 将整个坐标系先应用缩放
+        g2d.scale(scale, scale);
+        
+        // 3. 再平移到页面的绘制起点
+        g2d.translate(pageX, pageY);
+
+        // --- 在变换后的坐标系中进行绘制 (后续代码不变) ---
+
+        g2d.setColor(Color.DARK_GRAY);
+        g2d.fillRect(Slide.PAGE_WIDTH + 2, 5, 5, Slide.PAGE_HEIGHT);
+        g2d.fillRect(5, Slide.PAGE_HEIGHT + 2, Slide.PAGE_WIDTH - 3, 5);
+
+        g2d.setColor(Color.WHITE);
+        g2d.fillRect(0, 0, Slide.PAGE_WIDTH, Slide.PAGE_HEIGHT);
+        
+        g2d.setColor(Color.BLACK);
+        g2d.drawRect(0, 0, Slide.PAGE_WIDTH, Slide.PAGE_HEIGHT);
+
         Slide currentSlide = presentation.getSlides().get(currentSlideIndex);
-
-        // 遍历当前页面上的所有元素
         for (AbstractSlideObject object : currentSlide.getSlideObjects()) {
-            // 让每个元素自己画自己（多态的体现）
-            object.draw(g);
+            object.draw(g2d);
         }
+        
+        g2d.setTransform(oldTransform);
     }
 }

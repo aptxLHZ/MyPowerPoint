@@ -9,6 +9,10 @@ import java.util.List;
  * 它包含了页面上所有的元素对象。
  */
 public class Slide implements Serializable {
+    
+    public static final int PAGE_WIDTH = 1280; // 页面宽度
+    public static final int PAGE_HEIGHT = 720; // 页面高度
+    
     // 这就是我们的核心：一个可以容纳页面上所有元素的“万能”列表
     private List<AbstractSlideObject> slideObjects;
 

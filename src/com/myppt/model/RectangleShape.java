@@ -2,7 +2,10 @@ package com.myppt.model;
 
 import java.awt.Color;
 import java.awt.Graphics;
+import java.awt.BasicStroke; // [!] 新增
+import java.awt.Stroke;      // [!] 新增
 import java.awt.Graphics2D;
+import java.awt.Point;
 
 /**
  * 表示一个矩形。这是第一个具体的幻灯片元素。
@@ -19,22 +22,52 @@ public class RectangleShape extends AbstractSlideObject {
         this.fillColor = fillColor;
     }
 
+    // [!] 新增: 设置填充颜色的方法
+    public void setFillColor(Color fillColor) {
+        this.fillColor = fillColor;
+    }
+
     // 实现父类中定义的抽象方法
     @Override
     public void draw(Graphics g) {
-        // 保存当前的颜色设置
-        Color originalColor = g.getColor();
-
-        // 设置我们矩形的颜色
-        g.setColor(this.fillColor);
-        // 绘制一个填充的矩形
-        g.fillRect(this.x, this.y, this.width, this.height);
+        Graphics2D g2d = (Graphics2D) g; // [!] 转换为 Graphics2D
         
-        // （可选）再用黑色给它画个边框
-        g.setColor(Color.BLACK);
-        g.drawRect(this.x, this.y, this.width, this.height);
+        // 保存原始颜色和笔触
+        Color originalColor = g2d.getColor();
+        Stroke originalStroke = g2d.getStroke();
 
-        // 恢复画笔原来的颜色，这是一个好习惯
-        g.setColor(originalColor);
+        // 绘制填充矩形
+        g2d.setColor(this.fillColor);
+        g2d.fillRect(this.x, this.y, this.width, this.height);
+        
+        // 绘制边框
+        g2d.setColor(Color.BLACK);
+        g2d.drawRect(this.x, this.y, this.width, this.height);
+
+        // [!] 新增: 如果对象被选中，绘制一个虚线框作为高亮
+        if (this.selected) {
+            g2d.setColor(Color.BLUE);
+            // 创建一个虚线笔触: 10个像素实线，5个像素空白
+            Stroke dashed = new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, new float[]{10, 5}, 0);
+            g2d.setStroke(dashed);
+            // 绘制一个比原矩形稍大的框
+            g2d.drawRect(this.x - 3, this.y - 3, this.width + 6, this.height + 6);
+        }
+
+        // 恢复原始颜色和笔触
+        g2d.setColor(originalColor);
+        g2d.setStroke(originalStroke);
+    }
+
+    // [!] 新增: 实现 contains 方法
+    @Override
+    public boolean contains(Point p) {
+        // 判断点 p 的 x, y 坐标是否在矩形的范围内
+        return p.x >= this.x && p.x <= (this.x + this.width) &&
+               p.y >= this.y && p.y <= (this.y + this.height);
+    }
+
+    public Color getFillColor() {
+        return this.fillColor;
     }
 }
