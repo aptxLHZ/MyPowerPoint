@@ -4,6 +4,7 @@ import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.Stroke;
 import java.awt.geom.Ellipse2D; // 使用Ellipse2D可以更精确地进行绘制和碰撞检测
 
@@ -52,6 +53,11 @@ public class EllipseShape extends AbstractSlideObject {
             g2d.setStroke(dashed);
             // 绘制一个包围框
             g2d.drawRect(this.x - 3, this.y - 3, this.width + 6, this.height + 6);
+
+            //画控制点
+            for (Rectangle handle : getResizeHandles().values()) {
+                g2d.fill(handle);
+            }
         }
 
         g2d.setColor(originalColor);
@@ -60,5 +66,18 @@ public class EllipseShape extends AbstractSlideObject {
 
     public Color getFillColor() {
         return this.fillColor;
+    }
+
+    @Override
+    public Rectangle getBounds() {
+        return new Rectangle(this.x, this.y, this.width, this.height);
+    }
+
+    @Override
+    public void setBounds(Rectangle bounds) {
+        this.x = bounds.x;
+        this.y = bounds.y;
+        this.width = bounds.width;
+        this.height = bounds.height;
     }
 }

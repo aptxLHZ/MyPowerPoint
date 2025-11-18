@@ -8,6 +8,7 @@ import java.awt.Stroke;
 import java.io.File;
 import java.io.IOException;
 import javax.imageio.ImageIO;
+import java.awt.Rectangle;
 
 public class ImageObject extends AbstractSlideObject {
     // transient 关键字告诉Java序列化机制：不要尝试保存这个字段。
@@ -57,6 +58,24 @@ public class ImageObject extends AbstractSlideObject {
             g2d.setStroke(dashed);
             g2d.drawRect(this.x - 3, this.y - 3, this.width + 6, this.height + 6);
             g2d.setStroke(originalStroke);
+
+            //画控制点
+            for (Rectangle handle : getResizeHandles().values()) {
+                g2d.fill(handle);
+            }
         }
+    }
+
+    @Override
+    public Rectangle getBounds() {
+        return new Rectangle(this.x, this.y, this.width, this.height);
+    }
+
+    @Override
+    public void setBounds(Rectangle bounds) {
+        this.x = bounds.x;
+        this.y = bounds.y;
+        this.width = bounds.width;
+        this.height = bounds.height;
     }
 }

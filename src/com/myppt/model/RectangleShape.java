@@ -6,6 +6,7 @@ import java.awt.BasicStroke; // [!] 新增
 import java.awt.Stroke;      // [!] 新增
 import java.awt.Graphics2D;
 import java.awt.Point;
+import java.awt.Rectangle;
 
 /**
  * 表示一个矩形。这是第一个具体的幻灯片元素。
@@ -52,6 +53,11 @@ public class RectangleShape extends AbstractSlideObject {
             g2d.setStroke(dashed);
             // 绘制一个比原矩形稍大的框
             g2d.drawRect(this.x - 3, this.y - 3, this.width + 6, this.height + 6);
+            
+            //画控制点
+            for (Rectangle handle : getResizeHandles().values()) {
+                g2d.fill(handle);
+            }
         }
 
         // 恢复原始颜色和笔触
@@ -69,5 +75,18 @@ public class RectangleShape extends AbstractSlideObject {
 
     public Color getFillColor() {
         return this.fillColor;
+    }
+
+    @Override
+    public Rectangle getBounds() {
+        return new Rectangle(this.x, this.y, this.width, this.height);
+    }
+
+    @Override
+    public void setBounds(Rectangle bounds) {
+        this.x = bounds.x;
+        this.y = bounds.y;
+        this.width = bounds.width;
+        this.height = bounds.height;
     }
 }

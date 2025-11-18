@@ -27,4 +27,8 @@ public class Slide implements Serializable {
     public void addObject(AbstractSlideObject object) {
         this.slideObjects.add(object);
     }
+    
+    public void removeObject(AbstractSlideObject object) {
+        this.slideObjects.remove(object);
+    }
 }

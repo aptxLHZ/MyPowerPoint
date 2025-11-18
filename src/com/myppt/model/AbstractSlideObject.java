@@ -2,8 +2,13 @@ package com.myppt.model;
 
 import java.awt.Graphics;
 import java.io.Serializable;
-import java.awt.Point; // [!] 新增: 引入Point类来表示坐标点
+import java.util.EnumMap;
+import java.util.Map;
 
+import com.myppt.controller.strategies.ResizeHandle;
+
+import java.awt.Point; // [!] 新增: 引入Point类来表示坐标点
+import java.awt.Rectangle;
 
 /**
  * 这是一个抽象类，是所有幻灯片元素（文本、图形、图片等）的“共同祖先”。
@@ -11,8 +16,10 @@ import java.awt.Point; // [!] 新增: 引入Point类来表示坐标点
  */
 public abstract class AbstractSlideObject implements Serializable {
     // 所有元素都有x, y坐标
-    protected int x;
-    protected int y;
+    public int x;
+    public int y;
+
+    public static final int HANDLE_SIZE = 8; // 控制点小方块的大小
 
     // [!] 新增: 选中状态标志
     protected boolean selected = false;
@@ -54,4 +61,39 @@ public abstract class AbstractSlideObject implements Serializable {
     public void setSelected(boolean selected) {
         this.selected = selected;
     }
+
+    /**
+     * 根据对象的边界计算并返回8个缩放控制点的位置。
+     * 默认实现适用于所有矩形包围盒的对象。
+     * @return 一个包含8个控制点类型及其位置(Rectangle)的Map。
+     */
+    public Map<ResizeHandle, Rectangle> getResizeHandles() {
+        // 子类需要提供自己的 getBounds() 实现
+        Rectangle bounds = getBounds();
+        int x = bounds.x;
+        int y = bounds.y;
+        int width = bounds.width;
+        int height = bounds.height;
+        
+        EnumMap<ResizeHandle, Rectangle> handles = new EnumMap<>(ResizeHandle.class);
+        
+        handles.put(ResizeHandle.TOP_LEFT, new Rectangle(x - HANDLE_SIZE / 2, y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE));
+        handles.put(ResizeHandle.TOP_CENTER, new Rectangle(x + width / 2 - HANDLE_SIZE / 2, y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE));
+        handles.put(ResizeHandle.TOP_RIGHT, new Rectangle(x + width - HANDLE_SIZE / 2, y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE));
+        handles.put(ResizeHandle.MIDDLE_LEFT, new Rectangle(x - HANDLE_SIZE / 2, y + height / 2 - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE));
+        handles.put(ResizeHandle.MIDDLE_RIGHT, new Rectangle(x + width - HANDLE_SIZE / 2, y + height / 2 - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE));
+        handles.put(ResizeHandle.BOTTOM_LEFT, new Rectangle(x - HANDLE_SIZE / 2, y + height - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE));
+        handles.put(ResizeHandle.BOTTOM_CENTER, new Rectangle(x + width / 2 - HANDLE_SIZE / 2, y + height - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE));
+        handles.put(ResizeHandle.BOTTOM_RIGHT, new Rectangle(x + width - HANDLE_SIZE / 2, y + height - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE));
+        
+        return handles;
+    }
+
+    /**
+     * 返回对象的矩形包围盒。子类必须实现此方法。
+     * @return 一个表示对象边界的Rectangle。
+     */
+    public abstract Rectangle getBounds();
+
+    public abstract void setBounds(Rectangle bounds);
 }
