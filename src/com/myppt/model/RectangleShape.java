@@ -16,6 +16,15 @@ public class RectangleShape extends AbstractSlideObject {
     private int width;
     private int height;
     private Color fillColor;
+    private Color borderColor = Color.BLACK; // [!] 新增: 默认为黑色
+    private double borderWidth = 1.0f;        // [!] 新增: 默认为1像素
+
+    // [!] 新增: 线型定义
+    public static final int BORDER_STYLE_SOLID = 0;
+    public static final int BORDER_STYLE_DASHED = 1;
+    public static final int BORDER_STYLE_DOTTED = 2;
+
+    private int borderStyle = BORDER_STYLE_SOLID; // 默认为实线
 
     public RectangleShape(int x, int y, int width, int height, Color fillColor) {
         super(x, y); // 调用父类的构造方法，设置x, y坐标
@@ -23,7 +32,12 @@ public class RectangleShape extends AbstractSlideObject {
         this.height = height;
         this.fillColor = fillColor;
     }
-
+    public Color getBorderColor() { return borderColor; }
+    public void setBorderColor(Color borderColor) { this.borderColor = borderColor; }
+    public double getBorderWidth() { return borderWidth; }
+    public void setBorderWidth(double borderWidth) { this.borderWidth = borderWidth; }
+    public int getBorderStyle() { return borderStyle; }
+    public void setBorderStyle(int borderStyle) { this.borderStyle = borderStyle; }
     // [!] 新增: 设置填充颜色的方法
     public void setFillColor(Color fillColor) {
         this.fillColor = fillColor;
@@ -42,9 +56,29 @@ public class RectangleShape extends AbstractSlideObject {
         g2d.setColor(this.fillColor);
         g2d.fillRect(this.x, this.y, this.width, this.height);
         
-        // 绘制边框
-        g2d.setColor(Color.BLACK);
-        g2d.drawRect(this.x, this.y, this.width, this.height);
+        // [!] 核心修改: 绘制自定义边框
+        if (borderWidth > 0) { // 只有当边框宽度大于0时才绘制
+            g2d.setColor(this.borderColor);
+
+            Stroke borderStroke;
+            float width = (float) this.borderWidth;
+            switch (borderStyle) {
+                case BORDER_STYLE_DASHED:
+                    // 虚线: 10像素实，5像素空
+                    borderStroke = new BasicStroke(width, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, new float[]{10.0f, 5.0f}, 0.0f);
+                    break;
+                case BORDER_STYLE_DOTTED:
+                    // 点线: 宽度本身是点，宽度本身是空
+                    borderStroke = new BasicStroke(width, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 10.0f, new float[]{width, width * 2}, 0.0f);
+                    break;
+                case BORDER_STYLE_SOLID:
+                default:
+                    borderStroke = new BasicStroke(width);
+                    break;
+            }
+            g2d.setStroke(borderStroke);
+            g2d.drawRect(this.x, this.y, this.width, this.height);
+        }
 
         // [!] 新增: 如果对象被选中，绘制一个虚线框作为高亮
         if (this.selected) {

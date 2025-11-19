@@ -26,16 +26,21 @@ public class MainFrame extends JFrame {
     private JButton addImageButton;
     private JButton newSlideButton;
     private JButton deleteSlideButton;
+    private JButton borderColorButton; // [!] 新增
+
 
     private JComboBox<String> fontNameBox;
     private JSpinner fontSizeSpinner;
+    private JSpinner borderWidthSpinner; // [!] 新增
     private JCheckBox boldCheckBox;
     private JCheckBox italicCheckBox;
-    
+
     private JMenuItem newMenuItem;
     private JMenuItem openMenuItem;
     private JMenuItem saveMenuItem;
     private JMenuItem saveAsMenuItem;
+
+    private JComboBox<String> borderStyleBox;
 
    public MainFrame() {
     setTitle("My PowerPoint");
@@ -108,8 +113,14 @@ public class MainFrame extends JFrame {
     changeColorButton.setMaximumSize(buttonSize);
     editTextButton.setMaximumSize(buttonSize);
 
+    borderColorButton = new JButton("边框颜色"); // [!] 新增
+    borderColorButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+    borderColorButton.setMaximumSize(buttonSize);
+
     propertiesPanel.add(changeColorButton);
     propertiesPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+    propertiesPanel.add(borderColorButton); // [!] 新增
+    propertiesPanel.add(Box.createRigidArea(new Dimension(0, 5)));  
     propertiesPanel.add(editTextButton);
 
     // --- 分隔符 ---
@@ -154,6 +165,30 @@ public class MainFrame extends JFrame {
     stylePanel.add(italicCheckBox);
     propertiesPanel.add(stylePanel);
 
+    // [!] 新增: 边框样式组
+    propertiesPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+    JLabel borderLabel = new JLabel("边框样式:");
+    borderLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+    propertiesPanel.add(borderLabel);
+
+    JPanel borderPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    borderPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+    borderPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 35));
+    borderPanel.add(new JLabel("粗细: "));
+    borderWidthSpinner = new JSpinner(new SpinnerNumberModel(1.0, 0.0, 20.0, 0.5)); // 最小0, 最大20, 步长0.5
+    borderPanel.add(borderWidthSpinner);
+    propertiesPanel.add(borderPanel);
+
+    // [!] 新增: 边框线型选择
+    JPanel borderStylePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    borderStylePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+    borderStylePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 35));
+    borderStylePanel.add(new JLabel("线型: "));
+    String[] styleNames = {"实线", "虚线", "点线", "无边框"};
+    borderStyleBox = new JComboBox<>(styleNames);
+    borderStylePanel.add(borderStyleBox);
+    propertiesPanel.add(borderStylePanel);
+
     // 默认禁用所有样式控件
     changeColorButton.setEnabled(false);
     editTextButton.setEnabled(false);
@@ -161,6 +196,8 @@ public class MainFrame extends JFrame {
     fontSizeSpinner.setEnabled(false);
     boldCheckBox.setEnabled(false);
     italicCheckBox.setEnabled(false);
+    borderColorButton.setEnabled(false);
+    borderWidthSpinner.setEnabled(false);
 
     // [!] 添加一个“弹簧”，将所有组件推到顶部
     propertiesPanel.add(Box.createVerticalGlue());
@@ -216,4 +253,7 @@ public class MainFrame extends JFrame {
     public JCheckBox getItalicCheckBox() { return italicCheckBox; }
     public JMenuItem getNewMenuItem() { return newMenuItem; }
     public JMenuItem getSaveAsMenuItem() { return saveAsMenuItem; }
+    public JButton getBorderColorButton() { return borderColorButton; }
+    public JSpinner getBorderWidthSpinner() { return borderWidthSpinner; }
+    public JComboBox<String> getBorderStyleBox() { return borderStyleBox; }
 }

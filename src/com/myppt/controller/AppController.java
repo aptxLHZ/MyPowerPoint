@@ -358,6 +358,74 @@ public class AppController {
         mainFrame.getSaveMenuItem().addActionListener(e -> saveToFile());
         mainFrame.getNewMenuItem().addActionListener(e -> newFile());
         mainFrame.getSaveAsMenuItem().addActionListener(e -> saveAsToFile());
+        mainFrame.getBorderColorButton().addActionListener(e -> {
+            if (selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape) {
+                Color currentColor = Color.BLACK;
+                if (selectedObject instanceof RectangleShape) {
+                    currentColor = ((RectangleShape) selectedObject).getBorderColor();
+                } else if (selectedObject instanceof EllipseShape) {
+                    currentColor = ((EllipseShape) selectedObject).getBorderColor();
+                }
+
+                Color newColor = JColorChooser.showDialog(mainFrame, "选择边框颜色", currentColor);
+                if (newColor != null) {
+                    if (selectedObject instanceof RectangleShape) {
+                        ((RectangleShape) selectedObject).setBorderColor(newColor);
+                    } else if (selectedObject instanceof EllipseShape) {
+                        ((EllipseShape) selectedObject).setBorderColor(newColor);
+                    }
+                    markAsDirty();
+                    mainFrame.getCanvasPanel().repaint();
+                    repaintThumbnails();
+                }
+            }
+        });
+        mainFrame.getBorderStyleBox().addActionListener(e -> {
+            if (isUpdatingUI) return; // 防止UI串扰
+            if (selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape) {
+                int selectedIndex = mainFrame.getBorderStyleBox().getSelectedIndex();
+                
+                // "无边框" 选项被选中
+                if (selectedIndex == 3) {
+                    if (selectedObject instanceof RectangleShape) {
+                        ((RectangleShape) selectedObject).setBorderWidth(0f);
+                    } else {
+                        ((EllipseShape) selectedObject).setBorderWidth(0f);
+                    }
+                } else {
+                    // 如果之前是"无边框"，切换回来时给一个默认宽度
+                    if (selectedObject instanceof RectangleShape) {
+                        RectangleShape rect = (RectangleShape) selectedObject;
+                        if (rect.getBorderWidth() == 0) rect.setBorderWidth(1.0f);
+                        rect.setBorderStyle(selectedIndex);
+                    } else if (selectedObject instanceof EllipseShape) {
+                        EllipseShape ellipse = (EllipseShape) selectedObject;
+                        if (ellipse.getBorderWidth() == 0) ellipse.setBorderWidth(1.0f);
+                        ellipse.setBorderStyle(selectedIndex);
+                    }
+                }
+                
+                markAsDirty();
+                mainFrame.getCanvasPanel().repaint();
+                repaintThumbnails();
+                updatePropertiesPanel(); // 需要调用这个来同步 "粗细" 微调器的状态
+            }
+        });
+        mainFrame.getBorderWidthSpinner().addChangeListener(e -> {
+            if (isUpdatingUI) return; // 防止UI串扰
+            if (selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape) {
+                double newWidth = ((Number)mainFrame.getBorderWidthSpinner().getValue()).floatValue();
+                if (selectedObject instanceof RectangleShape) {
+                    ((RectangleShape) selectedObject).setBorderWidth(newWidth);
+                } else {
+                    ((EllipseShape) selectedObject).setBorderWidth(newWidth);
+                }
+                markAsDirty();
+                mainFrame.getCanvasPanel().repaint();
+                repaintThumbnails();
+                updatePropertiesPanel(); // 宽度改变可能会影响到"无边框"选项
+            }
+        });
     }
 
     private void attachMouseWheelListener() {
@@ -470,6 +538,38 @@ public class AppController {
             
             // [核心] 更新UI结束后，清除标志位
             isUpdatingUI = false;
+        }
+
+        // [!] 新增: 边框控件的可见性/可用性
+        boolean hasBorder = selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape;
+        mainFrame.getBorderColorButton().setVisible(hasBorder);
+        mainFrame.getBorderWidthSpinner().getParent().setVisible(hasBorder); // getParent() to get the JPanel
+        mainFrame.getBorderStyleBox().getParent().setVisible(hasBorder); // [!] 新增: 控制线型选择器的可见性
+
+        if (hasBorder) {
+            mainFrame.getBorderColorButton().setEnabled(true);
+            mainFrame.getBorderWidthSpinner().setEnabled(true);
+            mainFrame.getBorderStyleBox().setEnabled(true); // [!] 新增: 启用
+
+            if (selectedObject instanceof RectangleShape) {
+                RectangleShape rect = (RectangleShape) selectedObject;
+                mainFrame.getBorderWidthSpinner().setValue(rect.getBorderWidth());
+                // [!] 新增: 根据模型状态更新UI
+                if (rect.getBorderWidth() == 0) {
+                    mainFrame.getBorderStyleBox().setSelectedIndex(3); // "无边框"
+                } else {
+                    mainFrame.getBorderStyleBox().setSelectedIndex(rect.getBorderStyle());
+                }
+            } else if (selectedObject instanceof EllipseShape) {
+                EllipseShape ellipse = (EllipseShape) selectedObject;
+                mainFrame.getBorderWidthSpinner().setValue(ellipse.getBorderWidth());
+                // [!] 新增
+                if (ellipse.getBorderWidth() == 0) {
+                    mainFrame.getBorderStyleBox().setSelectedIndex(3);
+                } else {
+                    mainFrame.getBorderStyleBox().setSelectedIndex(ellipse.getBorderStyle());
+                }
+            }
         }
 
     }
