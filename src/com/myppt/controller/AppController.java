@@ -1,4 +1,5 @@
 package com.myppt.controller;
+import com.myppt.view.PlayerFrame; 
 
 import java.awt.Color;
 import java.awt.Font;
@@ -425,6 +426,27 @@ public class AppController {
                 repaintThumbnails();
                 updatePropertiesPanel(); // 宽度改变可能会影响到"无边框"选项
             }
+        });
+        mainFrame.getPlayButton().addActionListener(e -> {
+            // 隐藏主窗口 (可选，但体验更好)
+            mainFrame.setVisible(false); 
+            
+            // 创建并启动播放器
+            PlayerFrame player = new PlayerFrame(presentation);
+            // 3. 添加一个窗口监听器，以便在播放器关闭时得到通知
+            player.addWindowListener(new java.awt.event.WindowAdapter() {
+                @Override
+                public void windowClosed(java.awt.event.WindowEvent windowEvent) {
+                    // 当 player.dispose() 被调用后，这个方法会被触发
+                    // 4. 重新显示主编辑窗口
+                    mainFrame.setVisible(true);
+                    // 5. 确保主窗口恢复焦点
+                    mainFrame.toFront();
+                    mainFrame.requestFocus();
+                }
+            });
+            player.start();
+
         });
     }
 
