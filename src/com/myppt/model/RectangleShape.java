@@ -12,6 +12,7 @@ import java.awt.Rectangle;
  * 表示一个矩形。这是第一个具体的幻灯片元素。
  */
 public class RectangleShape extends AbstractSlideObject {
+    private static final long serialVersionUID = 1L;
     private int width;
     private int height;
     private Color fillColor;

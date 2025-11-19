@@ -9,6 +9,8 @@ import java.awt.Stroke;
 import java.awt.geom.Ellipse2D; // 使用Ellipse2D可以更精确地进行绘制和碰撞检测
 
 public class EllipseShape extends AbstractSlideObject {
+    private static final long serialVersionUID = 1L;
+    
     private int width;
     private int height;
     private Color fillColor;

@@ -14,6 +14,8 @@ import java.util.Map;
 import com.myppt.controller.strategies.ResizeHandle;
 
 public class LineShape extends AbstractSlideObject {
+    private static final long serialVersionUID = 1L;
+    
     // 使用 x, y 作为起点 (x1, y1)，并额外存储终点 (x2, y2)
     public int x2;
     public int y2;
@@ -93,21 +95,17 @@ public class LineShape extends AbstractSlideObject {
 
     @Override
     public void setBounds(Rectangle bounds) {
-        // 缩放直线，本质上是移动它的两个端点
-        // 这是一个简化的实现，它会保持直线的方向
-        // 为了更好的体验，可能需要更复杂的几何计算，但这个版本能保证功能可用
-        this.x = bounds.x;
-        this.y = bounds.y;
-        this.x2 = bounds.x + bounds.width;
-        this.y2 = bounds.y + bounds.height;
+        // 这个方法对于直线来说意义不大，可以空着，或者做一个简单的实现
+        // 我们的主要逻辑在 SelectStrategy 中
     }
 
     @Override
     public Map<ResizeHandle, Rectangle> getResizeHandles() {
-        // 直线只关心左上(起点)和右下(终点)两个控制点
         EnumMap<ResizeHandle, Rectangle> handles = new EnumMap<>(ResizeHandle.class);
+        // [!] 关键: 无论直线方向如何，TOP_LEFT 永远代表起点，BOTTOM_RIGHT 永远代表终点
         handles.put(ResizeHandle.TOP_LEFT, new Rectangle(x - HANDLE_SIZE / 2, y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE));
         handles.put(ResizeHandle.BOTTOM_RIGHT, new Rectangle(x2 - HANDLE_SIZE / 2, y2 - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE));
         return handles;
     }
+
 }

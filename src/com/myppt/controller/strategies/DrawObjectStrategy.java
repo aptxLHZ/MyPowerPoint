@@ -15,13 +15,13 @@ import com.myppt.view.MainFrame;
 public class DrawObjectStrategy implements InteractionStrategy {
     private AppController appController;
     private MainFrame mainFrame;
-    private Presentation presentation;
+    // private Presentation presentation;
     private String objectType; // "RECT", "ELLIPSE", "TEXT"
 
     public DrawObjectStrategy(AppController appController, String objectType) {
         this.appController = appController;
         this.mainFrame = appController.getMainFrame();
-        this.presentation = appController.getPresentation();
+        // this.presentation = appController.getPresentation();
         this.objectType = objectType;
     }
 
@@ -36,10 +36,12 @@ public class DrawObjectStrategy implements InteractionStrategy {
 
         switch (objectType) {
             case "RECT":
-                presentation.getSlides().get(0).addObject(new RectangleShape(worldPoint.x, worldPoint.y, 100, 60, Color.BLUE));
+                appController.markAsDirty();
+                appController.getPresentation().getCurrentSlide().addObject(new RectangleShape(worldPoint.x, worldPoint.y, 100, 60, Color.BLUE));
                 break;
             case "ELLIPSE":
-                presentation.getSlides().get(0).addObject(new EllipseShape(worldPoint.x, worldPoint.y, 80, 80, Color.RED));
+                appController.markAsDirty();
+                appController.getPresentation().getCurrentSlide().addObject(new EllipseShape(worldPoint.x, worldPoint.y, 80, 80, Color.RED));
                 break;
             case "TEXT":
                 handleTextDraw(worldPoint);
@@ -50,6 +52,7 @@ public class DrawObjectStrategy implements InteractionStrategy {
         if (!objectType.equals("TEXT")) { // Text handling has its own mode switch
              appController.setMode("SELECT");
         }
+        appController.repaintThumbnails();
     }
 
     private void handleTextDraw(Point worldPoint) {
@@ -64,10 +67,12 @@ public class DrawObjectStrategy implements InteractionStrategy {
             if (text != null && !text.trim().isEmpty()) {
                 Font font = new Font("宋体", Font.PLAIN, 24);
                 TextBox textBox = new TextBox(worldPoint.x, worldPoint.y, text, font, Color.BLACK);
-                presentation.getSlides().get(0).addObject(textBox);
+                appController.markAsDirty();
+                appController.getPresentation().getCurrentSlide().addObject(textBox);
             }
         }
         appController.setMode("SELECT");
+        appController.repaintThumbnails();
     }
 
     @Override

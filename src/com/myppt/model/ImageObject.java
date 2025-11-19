@@ -11,6 +11,8 @@ import javax.imageio.ImageIO;
 import java.awt.Rectangle;
 
 public class ImageObject extends AbstractSlideObject {
+    private static final long serialVersionUID = 1L;
+    
     // transient 关键字告诉Java序列化机制：不要尝试保存这个字段。
     // 因为Image对象本身通常不是Serializable的，而且我们应该保存图片路径而不是图片数据。
     private transient Image image;
@@ -32,6 +34,21 @@ public class ImageObject extends AbstractSlideObject {
             this.height = this.image.getHeight(null); // 获取图片的原始高度
         } else {
             throw new IOException("无法加载图片: " + this.imagePath);
+        }
+    }
+
+    // [!] 新增: 自定义反序列化方法
+    private void readObject(java.io.ObjectInputStream in) 
+        throws IOException, ClassNotFoundException {
+        // 先调用默认的反序列化方法，它会读取所有非transient的字段 (比如 imagePath)
+        in.defaultReadObject();
+        // 然后，手动加载被忽略的 transient 字段
+        try {
+            loadImage();
+        } catch (IOException e) {
+            System.err.println("反序列化时加载图片失败: " + imagePath);
+            // 可以在这里设置一个“图片加载失败”的占位图
+            image = null;
         }
     }
 

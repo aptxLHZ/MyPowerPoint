@@ -9,6 +9,7 @@ import java.util.List;
  * 它包含了页面上所有的元素对象。
  */
 public class Slide implements Serializable {
+    private static final long serialVersionUID = 1L;
     
     public static final int PAGE_WIDTH = 1280; // 页面宽度
     public static final int PAGE_HEIGHT = 720; // 页面高度

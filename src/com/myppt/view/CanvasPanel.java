@@ -12,7 +12,6 @@ import java.awt.Graphics2D;
 
 public class CanvasPanel extends JPanel {
     private Presentation presentation;
-    private int currentSlideIndex;
     
     private double scale = 1.0;
 
@@ -22,8 +21,13 @@ public class CanvasPanel extends JPanel {
 
     public CanvasPanel(Presentation presentation) {
         this.presentation = presentation;
-        this.currentSlideIndex = 0;
+        // this.currentSlideIndex = 0;
         setBackground(Color.LIGHT_GRAY);
+    }
+
+    // [!] 新增: 设置一个新的数据模型
+    public void setPresentation(Presentation presentation) {
+        this.presentation = presentation;
     }
 
     public void setScale(double scale) {
@@ -72,7 +76,7 @@ public class CanvasPanel extends JPanel {
         g2d.setColor(Color.BLACK);
         g2d.drawRect(0, 0, Slide.PAGE_WIDTH, Slide.PAGE_HEIGHT);
 
-        Slide currentSlide = presentation.getSlides().get(currentSlideIndex);
+        Slide currentSlide = presentation.getCurrentSlide(); // [!] 关键: 直接从模型获取当前页
         for (AbstractSlideObject object : currentSlide.getSlideObjects()) {
             object.draw(g2d);
         }

@@ -10,7 +10,7 @@ import java.awt.Cursor;
 import com.myppt.controller.AppController;
 import com.myppt.model.AbstractSlideObject;
 import com.myppt.model.LineShape;
-import com.myppt.model.Presentation;
+// import com.myppt.model.Presentation;
 import com.myppt.model.Slide;
 import com.myppt.view.MainFrame;
 
@@ -22,7 +22,7 @@ import javax.swing.SwingUtilities;
 public class SelectStrategy implements InteractionStrategy {
     private AppController appController;
     private MainFrame mainFrame;
-    private Presentation presentation;
+    // private Presentation presentation;
     
     private AbstractSlideObject selectedObject = null;
     private Point dragStartPoint = null;
@@ -35,7 +35,7 @@ public class SelectStrategy implements InteractionStrategy {
     public SelectStrategy(AppController appController) {
         this.appController = appController;
         this.mainFrame = appController.getMainFrame();
-        this.presentation = appController.getPresentation();
+        // this.presentation = appController.getPresentation();
     }
     
     @Override
@@ -65,6 +65,7 @@ public class SelectStrategy implements InteractionStrategy {
                     }
 
                     mainFrame.getCanvasPanel().repaint();
+                    appController.repaintThumbnails();
                     return;
                 }
             }
@@ -89,6 +90,7 @@ public class SelectStrategy implements InteractionStrategy {
         appController.setSelectedObject(selectedObject);
         appController.updatePropertiesPanel();
         mainFrame.getCanvasPanel().repaint();
+        appController.repaintThumbnails();
     }
 
     @Override
@@ -100,6 +102,7 @@ public class SelectStrategy implements InteractionStrategy {
         if (activeResizeHandle != null) {
             handleResize(worldPoint, e.isShiftDown());
         } else {
+            appController.markAsDirty();
             int dx = worldPoint.x - dragStartPoint.x;
             int dy = worldPoint.y - dragStartPoint.y;
             selectedObject.setX(objectStartPoint.x + dx);
@@ -107,6 +110,7 @@ public class SelectStrategy implements InteractionStrategy {
         }
         
         mainFrame.getCanvasPanel().repaint();
+        appController.repaintThumbnails();
     }
 
     /**
@@ -115,6 +119,14 @@ public class SelectStrategy implements InteractionStrategy {
      * @param isShiftDown Shift键是否被按下
      */
     private void handleResize(Point currentPoint, boolean isShiftDown) {
+        // [!] 核心修复: 如果是直线，走特殊逻辑
+        if (selectedObject instanceof LineShape) {
+            handleLineResize(currentPoint);
+            return; // 处理完直接返回
+        }
+
+        appController.markAsDirty();
+
         int dx = currentPoint.x - dragStartPoint.x;
         int dy = currentPoint.y - dragStartPoint.y;
 
@@ -203,6 +215,27 @@ public class SelectStrategy implements InteractionStrategy {
         }
     }
 
+    // [!] 新增: 专门处理直线缩放的方法
+    private void handleLineResize(Point currentPoint) {
+        appController.markAsDirty();
+        LineShape line = (LineShape) selectedObject;
+        // 我们需要知道拖动前起点和终点的原始位置
+        // 我们可以在 mousePressed 时就把它们存起来
+        // 为了简化，我们暂时用一种变通的方法：
+        // activeResizeHandle 告诉我们拖的是哪个点
+        
+        if (activeResizeHandle == ResizeHandle.TOP_LEFT) {
+            // 拖动的是起点 (x, y)
+            line.x = currentPoint.x;
+            line.y = currentPoint.y;
+        } else if (activeResizeHandle == ResizeHandle.BOTTOM_RIGHT) {
+            // 拖动的是终点 (x2, y2)
+            line.x2 = currentPoint.x;
+            line.y2 = currentPoint.y;
+        }
+    }
+
+
     @Override
     public void mouseReleased(MouseEvent e) {
         dragStartPoint = null;
@@ -236,7 +269,8 @@ public class SelectStrategy implements InteractionStrategy {
 
     // --- 辅助方法 ---
     private AbstractSlideObject findObjectAtPoint(Point worldPoint) {
-        Slide currentSlide = presentation.getSlides().get(0);
+        // [!] 核心修复: 总是从 AppController 获取最新的 presentation
+        Slide currentSlide = appController.getPresentation().getCurrentSlide();
         List<AbstractSlideObject> objects = currentSlide.getSlideObjects();
         for (int i = objects.size() - 1; i >= 0; i--) {
             AbstractSlideObject object = objects.get(i);
@@ -248,12 +282,14 @@ public class SelectStrategy implements InteractionStrategy {
     }
     
     private void deselectAllObjects() {
-        Slide currentSlide = presentation.getSlides().get(0);
+        // [!] 核心修复: 总是从 AppController 获取最新的 presentation
+        Slide currentSlide = appController.getPresentation().getCurrentSlide();
         for (AbstractSlideObject object : currentSlide.getSlideObjects()) {
             object.setSelected(false);
         }
         selectedObject = null;
         appController.setSelectedObject(null);
+        appController.repaintThumbnails();
     }
 
     // [!] 新增: 处理右键点击的方法
@@ -275,10 +311,12 @@ public class SelectStrategy implements InteractionStrategy {
             // 为“删除”菜单项添加动作监听器
             deleteItem.addActionListener(actionEvent -> {
                 if (selectedObject != null) {
-                    presentation.getSlides().get(0).removeObject(selectedObject);
+                    appController.markAsDirty();
+                    appController.getPresentation().getCurrentSlide().removeObject(selectedObject);
                     appController.setSelectedObject(null);
                     appController.updatePropertiesPanel();
                     mainFrame.getCanvasPanel().repaint();
+                    appController.repaintThumbnails();
                 }
             });
             
@@ -286,6 +324,7 @@ public class SelectStrategy implements InteractionStrategy {
             
             // 在鼠标点击的位置显示菜单
             popupMenu.show(e.getComponent(), e.getX(), e.getY());
+            appController.repaintThumbnails();
         }
     }
 }

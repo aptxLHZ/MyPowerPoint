@@ -6,19 +6,19 @@ import java.awt.event.MouseEvent;
 
 import com.myppt.controller.AppController;
 import com.myppt.model.LineShape;
-import com.myppt.model.Presentation;
+// import com.myppt.model.Presentation;
 import com.myppt.view.MainFrame;
 
 public class DrawLineStrategy implements InteractionStrategy {
     private AppController appController;
     private MainFrame mainFrame;
-    private Presentation presentation;
+    // private Presentation presentation;
     private LineShape currentDrawingLine = null;
 
     public DrawLineStrategy(AppController appController) {
         this.appController = appController;
         this.mainFrame = appController.getMainFrame();
-        this.presentation = appController.getPresentation();
+        // this.presentation = appController.getPresentation();
     }
 
     @Override
@@ -26,8 +26,10 @@ public class DrawLineStrategy implements InteractionStrategy {
         Point worldPoint = appController.convertScreenToWorld(e.getPoint());
         if (appController.isPointInPage(worldPoint)) {
             currentDrawingLine = new LineShape(worldPoint.x, worldPoint.y, worldPoint.x, worldPoint.y, Color.BLACK, 2f);
-            presentation.getSlides().get(0).addObject(currentDrawingLine);
+            appController.getPresentation().getCurrentSlide().addObject(currentDrawingLine);
         }
+        mainFrame.getCanvasPanel().repaint();
+        appController.repaintThumbnails();
     }
 
     @Override
@@ -38,10 +40,12 @@ public class DrawLineStrategy implements InteractionStrategy {
             currentDrawingLine.y2 = worldPoint.y;
             mainFrame.getCanvasPanel().repaint();
         }
+        appController.repaintThumbnails();
     }
 
     @Override
     public void mouseReleased(MouseEvent e) {
+        appController.markAsDirty();
         currentDrawingLine = null;
         appController.setMode("SELECT");
     }

@@ -1,16 +1,23 @@
 package com.myppt.controller;
 
 import java.awt.Color;
+import java.awt.Font;
 import java.awt.Point;
 import java.awt.Toolkit;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseWheelEvent;
-import java.awt.event.ActionEvent; // [!] 新增
+import java.awt.event.ActionEvent; 
+import java.awt.event.MouseEvent;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.util.List;
 
 import javax.swing.JButton;
 import javax.swing.JColorChooser;
@@ -21,6 +28,8 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JViewport;
 import javax.swing.SwingUtilities;
+
+
 import javax.swing.AbstractAction; // [!] 新增
 import javax.swing.ActionMap;      // [!] 新增
 import javax.swing.InputMap;       // [!] 新增
@@ -32,6 +41,8 @@ import com.myppt.controller.strategies.*; // 导入所有策略
 import com.myppt.model.*;
 import com.myppt.view.CanvasPanel;
 import com.myppt.view.MainFrame;
+import com.myppt.view.SlideThumbnail;
+import com.myppt.view.ThumbnailPanel;
 
 /**
  * 应用程序的主控制器，负责协调各个部分。
@@ -43,8 +54,10 @@ public class AppController {
     private String currentMode = "SELECT";
     private double scale = 1.0;
     private AbstractSlideObject selectedObject = null;
-    
+    private boolean isUpdatingUI = false;
     private InteractionStrategy currentStrategy; // 核心: 当前的交互策略
+    private File currentFile = null; // [!] 新增: 用于追踪当前正在编辑的文件
+    private boolean isDirty = false; // [!] 新增: “脏”标记
 
     public AppController(Presentation presentation, MainFrame mainFrame) {
         this.presentation = presentation;
@@ -55,9 +68,18 @@ public class AppController {
         this.currentStrategy = new SelectStrategy(this);
         
         this.attachListeners();
+        updateUI();
+
+        updateTitle();
     }
 
     // --- Getters and Setters for shared state ---
+    public void markAsDirty() { 
+        if (!this.isDirty) { // 只有在状态从“干净”变“脏”时才更新
+            this.isDirty = true;
+            updateTitle(); // [!] 核心: 立即更新标题
+        } 
+    }
     public MainFrame getMainFrame() { return mainFrame; }
     public Presentation getPresentation() { return presentation; }
     public String getCurrentMode() { return currentMode; }
@@ -66,6 +88,145 @@ public class AppController {
     
     public void setSelectedObject(AbstractSlideObject object) {
         this.selectedObject = object;
+    }
+
+    /**
+     * 处理“新建”命令。
+     */
+    private void newFile() {
+        if (!promptToSave()) {
+            return; // 如果用户取消，则中断“新建”操作
+        }
+        
+        // 1. 创建一个全新的 Presentation
+        this.presentation = new Presentation();
+        this.currentFile = null; // 新文件没有关联路径
+        this.isDirty = false; 
+        updateTitle();
+        
+        // 2. 更新 CanvasPanel 的数据模型
+        mainFrame.getCanvasPanel().setPresentation(this.presentation);
+        
+        // 3. 更新整个UI
+        updateUI();
+        
+        // 4. 重置视图
+        SwingUtilities.invokeLater(() -> {
+            fitToWindow();
+        });
+    }
+
+    /**
+     * 处理“保存”命令。
+     * 如果是新文件（从未保存过），则调用“另存为”。
+     * 否则，直接在当前文件上覆盖保存。
+     */
+    private void saveToFile() {
+        if (currentFile == null) {
+            saveAsToFile();
+        } else {
+            doSave(currentFile);
+        }
+    }
+
+    /**
+     * 处理“另存为”命令。
+     * 总是会弹出文件选择对话框。
+     * 保存成功后，程序将开始编辑这个新文件。
+     */
+    private void saveAsToFile() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("另存为...");
+        // ... (FileFilter 代码不变)
+        
+        int userSelection = fileChooser.showSaveDialog(mainFrame);
+
+        if (userSelection == JFileChooser.APPROVE_OPTION) {
+            File fileToSave = fileChooser.getSelectedFile();
+            if (!fileToSave.getName().toLowerCase().endsWith(".myppt")) {
+                fileToSave = new File(fileToSave.getAbsolutePath() + ".myppt");
+            }
+            
+            // 调用保存逻辑
+            if (doSave(fileToSave)) { // 检查 doSave 是否成功
+                // 如果保存成功，则更新当前文件引用
+                this.currentFile = fileToSave;
+                updateTitle(); // [!] 更新窗口标题
+            }
+        }
+    }
+
+    /**
+     * 真正执行保存到指定文件操作的私有方法。
+     * @param file 要保存到的文件
+     * @return 如果保存成功，返回true；否则返回false。
+     */
+    private boolean doSave(File file) {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(file))) {
+            oos.writeObject(presentation);
+            
+            // [!] 核心: 保存成功后，文件状态变为“干净”
+            this.isDirty = false;
+            updateTitle(); // [!] 新增: 保存成功后，立即更新标题以移除星号
+            
+            JOptionPane.showMessageDialog(mainFrame, "保存成功！");
+            return true;
+        } catch (IOException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(mainFrame, "保存失败: " + e.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
+    }
+
+
+    /**
+     * 处理“打开”命令。
+     * 打开一个选中的.myppt文件，如果当前有未保存的更改，会提示用户是否保存。
+     */
+    private void openFromFile() {
+        if (!promptToSave()) {
+            return; // 如果用户取消，则中断“打开”操作
+        }
+        
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("打开幻灯片");
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileFilter() {
+            public boolean accept(File f) {
+                return f.isDirectory() || f.getName().toLowerCase().endsWith(".myppt");
+            }
+            public String getDescription() {
+                return "MyPPT 幻灯片 (*.myppt)";
+            }
+        });
+
+        int userSelection = fileChooser.showOpenDialog(mainFrame);
+        if (userSelection == JFileChooser.APPROVE_OPTION) {
+            currentFile = fileChooser.getSelectedFile();
+            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(currentFile))) {
+                Presentation loadedPresentation = (Presentation) ois.readObject();
+                
+                // 1. 直接替换 AppController 持有的数据模型引用
+                this.presentation = loadedPresentation;
+
+                this.isDirty = false; // [!] 打开后，文件是干净的
+                updateTitle();
+                
+                // 2. 告诉 CanvasPanel 也使用这个新的数据模型
+                mainFrame.getCanvasPanel().setPresentation(this.presentation);
+                
+                // 3. 更新整个UI（特别是左侧缩略图）
+                updateUI();
+                
+                // 4. 自动重置视图
+                SwingUtilities.invokeLater(() -> {
+                    fitToWindow();
+                });
+
+            } catch (IOException | ClassNotFoundException e) {
+                e.printStackTrace();
+                JOptionPane.showMessageDialog(mainFrame, "打开失败: 文件可能已损坏或格式不兼容。", "错误", JOptionPane.ERROR_MESSAGE);
+            }
+        }
     }
 
     public void setMode(String mode) {
@@ -100,21 +261,25 @@ public class AppController {
             mainFrame.getCanvasPanel().repaint();
         }
     }
-
+    
     // --- 核心监听器附加 ---
     private void attachListeners() {
-        // 1. 创建并附加画布控制器，它会将事件转发给上面的 currentStrategy
-        CanvasController canvasController = new CanvasController(this);
-        mainFrame.getCanvasPanel().addMouseListener(canvasController);
-        mainFrame.getCanvasPanel().addMouseMotionListener(canvasController);
+        // 这个方法现在只在构造函数中调用一次
+        attachFrameListeners();
+        attachCanvasListeners();
+    }
 
-        // 2. 附加非画布UI事件监听器
+    private void attachFrameListeners() {
         attachComponentListeners();
         attachButtonListeners();
         attachMouseWheelListener();
-
         attachKeyBindings();
+    }
 
+    private void attachCanvasListeners() {
+        CanvasController canvasController = new CanvasController(this);
+        mainFrame.getCanvasPanel().addMouseListener(canvasController);
+        mainFrame.getCanvasPanel().addMouseMotionListener(canvasController);
     }
 
     // --- 分离出来的监听器附加方法 ---
@@ -131,6 +296,7 @@ public class AppController {
             }
         });
     }
+    
 
     private void attachButtonListeners() {
         mainFrame.getAddRectButton().addActionListener(e -> setMode("DRAW_RECT"));
@@ -141,6 +307,57 @@ public class AppController {
         mainFrame.getChangeColorButton().addActionListener(e -> changeSelectedObjectColor());
         mainFrame.getEditTextButton().addActionListener(e -> editSelectedText());
         mainFrame.getAddImageButton().addActionListener(e -> insertImage());
+        mainFrame.getNewSlideButton().addActionListener(e -> {
+            markAsDirty();
+            presentation.addNewSlide();
+            updateUI();
+        });
+        mainFrame.getDeleteSlideButton().addActionListener(e -> {
+            // 为了防止误删，可以加一个确认对话框
+            int choice = JOptionPane.showConfirmDialog(
+                mainFrame, 
+                "确定要删除当前页面吗?", // 提示：之后有了Undo/Redo就可以撤销了
+                "确认删除", 
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+            );
+            
+            if (choice == JOptionPane.YES_OPTION) {
+                markAsDirty();
+                presentation.removeCurrentSlide();
+                updateUI(); // 重新渲染UI以反映变化
+            }
+        });
+        Runnable updateFontAction = () -> {
+            // [核心] 如果是程序自己在更新UI，则忽略本次事件，直接返回
+            if (isUpdatingUI) {
+                return;
+            }
+
+            if (selectedObject instanceof TextBox) {
+                TextBox tb = (TextBox) selectedObject;
+                
+                String name = (String) mainFrame.getFontNameBox().getSelectedItem();
+                int size = (Integer) mainFrame.getFontSizeSpinner().getValue();
+                int style = Font.PLAIN;
+                if (mainFrame.getBoldCheckBox().isSelected()) style |= Font.BOLD;
+                if (mainFrame.getItalicCheckBox().isSelected()) style |= Font.ITALIC;
+                
+                Font newFont = new Font(name, style, size);
+                tb.setFont(newFont);
+                markAsDirty();
+                mainFrame.getCanvasPanel().repaint();
+                repaintThumbnails(); 
+            }
+        };
+        mainFrame.getFontNameBox().addActionListener(e -> updateFontAction.run());
+        mainFrame.getFontSizeSpinner().addChangeListener(e -> updateFontAction.run());
+        mainFrame.getBoldCheckBox().addActionListener(e -> updateFontAction.run());
+        mainFrame.getItalicCheckBox().addActionListener(e -> updateFontAction.run());
+        mainFrame.getOpenMenuItem().addActionListener(e -> openFromFile());
+        mainFrame.getSaveMenuItem().addActionListener(e -> saveToFile());
+        mainFrame.getNewMenuItem().addActionListener(e -> newFile());
+        mainFrame.getSaveAsMenuItem().addActionListener(e -> saveAsToFile());
     }
 
     private void attachMouseWheelListener() {
@@ -202,11 +419,13 @@ public class AppController {
             public void actionPerformed(ActionEvent e) {
                 // 这里的逻辑和之前右键菜单里的删除逻辑完全一样
                 if (selectedObject != null) {
-                    System.out.println("Delete/Backspace key pressed, deleting object."); // 调试信息
-                    presentation.getSlides().get(0).removeObject(selectedObject);
+                    // System.out.println("Delete/Backspace key pressed, deleting object."); // 调试信息
+                    markAsDirty();
+                    presentation.getCurrentSlide().removeObject(selectedObject);
                     setSelectedObject(null);
                     updatePropertiesPanel();
                     mainFrame.getCanvasPanel().repaint();
+                    repaintThumbnails();// 刷新缩略图面板
                 }
             }
         };
@@ -229,6 +448,30 @@ public class AppController {
         
         boolean enableTextButton = selectedObject != null && selectedObject instanceof TextBox;
         mainFrame.getEditTextButton().setEnabled(enableTextButton);
+
+        // --- 更新字体样式控件 ---
+        boolean isTextSelected = selectedObject instanceof TextBox;
+        mainFrame.getFontNameBox().setEnabled(isTextSelected);
+        mainFrame.getFontSizeSpinner().setEnabled(isTextSelected);
+        mainFrame.getBoldCheckBox().setEnabled(isTextSelected);
+        mainFrame.getItalicCheckBox().setEnabled(isTextSelected);
+
+        if (isTextSelected) {
+            // [核心] 开始用模型数据更新UI前，设置标志位
+            isUpdatingUI = true;
+            
+            TextBox tb = (TextBox) selectedObject;
+            Font f = tb.getFont();
+            
+            mainFrame.getFontNameBox().setSelectedItem(f.getFamily());
+            mainFrame.getFontSizeSpinner().setValue(f.getSize());
+            mainFrame.getBoldCheckBox().setSelected(f.isBold());
+            mainFrame.getItalicCheckBox().setSelected(f.isItalic());
+            
+            // [核心] 更新UI结束后，清除标志位
+            isUpdatingUI = false;
+        }
+
     }
 
     private void changeSelectedObjectColor() {
@@ -241,11 +484,13 @@ public class AppController {
         
         Color newColor = JColorChooser.showDialog(mainFrame, "选择颜色", currentColor);
         if (newColor != null) {
+            markAsDirty();
             if (selectedObject instanceof RectangleShape) ((RectangleShape) selectedObject).setFillColor(newColor);
             else if (selectedObject instanceof EllipseShape) ((EllipseShape) selectedObject).setFillColor(newColor);
             else if (selectedObject instanceof LineShape) ((LineShape) selectedObject).setLineColor(newColor);
             else if (selectedObject instanceof TextBox) ((TextBox) selectedObject).setTextColor(newColor);
             mainFrame.getCanvasPanel().repaint();
+            repaintThumbnails();
         }
     }
 
@@ -260,8 +505,10 @@ public class AppController {
             if (result == JOptionPane.OK_OPTION) {
                 String newText = textArea.getText();
                 if (newText != null) {
+                    markAsDirty();
                     selectedTextBox.setText(newText);
                     mainFrame.getCanvasPanel().repaint();
+                    repaintThumbnails();
                 }
             }
         }
@@ -283,8 +530,10 @@ public class AppController {
             File selectedFile = fileChooser.getSelectedFile();
             try {
                 ImageObject imageObj = new ImageObject(100, 100, selectedFile.getAbsolutePath());
-                presentation.getSlides().get(0).addObject(imageObj);
+                presentation.getCurrentSlide().addObject(imageObj);
+                markAsDirty();
                 mainFrame.getCanvasPanel().repaint();
+                repaintThumbnails();
             } catch (IOException ex) {
                 JOptionPane.showMessageDialog(mainFrame, "无法加载图片文件: " + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
             }
@@ -328,5 +577,104 @@ public class AppController {
             vBar.setValue(vMaxValue / 2);
         });
         System.out.println("视图已适应窗口大小并居中，当前缩放比例: " + String.format("%.2f", scale));
+    }
+
+    // [!] 新增: 一个总的UI更新方法
+    public void updateUI() {
+        updateThumbnailList();
+        mainFrame.getCanvasPanel().repaint();
+        updatePropertiesPanel();
+    }
+    
+    // [!] 新增: 更新左侧缩略图列表的核心方法
+    private void updateThumbnailList() {
+        ThumbnailPanel panel = mainFrame.getThumbnailPanel();
+        panel.removeAll(); // 清空旧的缩略图
+
+        List<Slide> slides = presentation.getSlides();
+        for (int i = 0; i < slides.size(); i++) {
+            Slide slide = slides.get(i);
+            SlideThumbnail thumb = new SlideThumbnail(slide, i + 1);
+            
+            final int index = i; // 必须是final才能在lambda中使用
+            thumb.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    // 点击缩略图时，切换当前页面
+                    presentation.setCurrentSlideIndex(index);
+                    mainFrame.getCanvasPanel().repaint();//切换页面后，必须重绘主画布
+                    updateUI(); // 更新整个UI
+                }
+            });
+
+            // 设置当前选中页面的高亮边框
+            if (i == presentation.getCurrentSlideIndex()) {
+                thumb.setSelected(true);
+            }
+
+            panel.add(thumb);
+        }
+        
+        // [!] 关键: 更新UI后需要 revalidate 和 repaint
+        panel.revalidate();
+        panel.repaint();
+    }
+
+    /**
+     * 一个轻量级的方法，只重绘左侧的缩略图面板，而不重新创建所有组件。
+     * 用于在画布内容改变时进行同步。
+     */
+    public void repaintThumbnails() {
+        if (mainFrame != null && mainFrame.getThumbnailPanel() != null) {
+            mainFrame.getThumbnailPanel().repaint();
+        }
+    }
+
+    /**
+     * 检查当前文件是否已修改，如果是，则弹出对话框询问用户是否保存。
+     * @return 如果用户选择“取消”，则返回false，表示后续操作（如新建、打开）应被中断。
+     *         否则返回true。
+     */
+    private boolean promptToSave() {
+        if (!isDirty) {
+            return true; // 文件没被修改，直接继续
+        }
+        
+        int result = JOptionPane.showConfirmDialog(
+            mainFrame,
+            "当前文件已修改，是否保存？",
+            "保存文件",
+            JOptionPane.YES_NO_CANCEL_OPTION,
+            JOptionPane.QUESTION_MESSAGE
+        );
+        
+        switch (result) {
+            case JOptionPane.YES_OPTION:
+                saveToFile();
+                return true; // 保存后继续
+            case JOptionPane.NO_OPTION:
+                return true; // 不保存，直接继续
+            case JOptionPane.CANCEL_OPTION:
+            case JOptionPane.CLOSED_OPTION:
+                return false; // 用户取消，中断后续操作
+        }
+        return false;
+    }
+
+    /**
+     * 根据当前文件状态，更新主窗口的标题栏。
+     */
+    private void updateTitle() {
+        String title = "My PowerPoint - ";
+        if (currentFile == null) {
+            title += "未命名文件";
+        } else {
+            title += currentFile.toString(); // 只显示文件名，而不是完整路径
+        }
+        // [!] 核心: 如果文件已修改，则添加星号
+        if (isDirty) {
+            title += "*";
+        }
+        mainFrame.setTitle(title);
     }
 }
