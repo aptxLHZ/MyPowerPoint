@@ -90,7 +90,7 @@ public class MainFrame extends JFrame {
     newSlideButton = new JButton("新建页面");
     deleteSlideButton = new JButton("删除页面");
     playButton = new JButton("播放");
-    playFromStartButton = new JButton("从头播放");
+    playFromStartButton = new JButton("从头播放(F5)");
     
 
     toolBar.add(newSlideButton);

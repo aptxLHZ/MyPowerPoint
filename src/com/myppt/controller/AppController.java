@@ -19,10 +19,10 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.List;
 
-import javax.swing.JButton;
 import javax.swing.JColorChooser;
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
+import javax.swing.JRootPane;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
@@ -80,12 +80,18 @@ public class AppController {
         // AppController一启动，默认的策略就是“选择”策略
         this.currentStrategy = new SelectStrategy(this);
         
-        this.undoManager = new UndoManager(mainFrame);
+        this.undoManager = new UndoManager();
         this.attachListeners();
         updateUI();
 
         updateTitle();
-        undoManager.updateMenuState();
+        updateMenuState();
+    }
+
+
+    private void updateMenuState() {
+        mainFrame.getUndoMenuItem().setEnabled(undoManager.canUndo());
+        mainFrame.getRedoMenuItem().setEnabled(undoManager.canRedo());
     }
 
     // --- Getters and Setters for shared state ---
@@ -417,6 +423,7 @@ public class AppController {
         mainFrame.getBorderWidthSpinner().addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
+                if (isUpdatingUI || selectedObject == null) return; 
                 // 鼠标按下时，记录下操作前的宽度
                 if (selectedObject instanceof RectangleShape) {
                     borderWidthBeforeChange = ((RectangleShape) selectedObject).getBorderWidth();
@@ -424,45 +431,45 @@ public class AppController {
                     borderWidthBeforeChange = ((EllipseShape) selectedObject).getBorderWidth();
                 }
             }
-@Override
-public void mouseReleased(MouseEvent e) {
-    if (!isSpinnerDragging) return;
-    
-    isSpinnerDragging = false;
-    
-    double newWidth = ((Number)mainFrame.getBorderWidthSpinner().getValue()).doubleValue();
-
-    if (newWidth != borderWidthBeforeChange) {
-        // [!] 直接创建命令，不再获取多余的 color 和 style
-        Object target = selectedObject;
-        
-        // 先把模型状态恢复到操作前
-        if (target instanceof RectangleShape) ((RectangleShape) target).setBorderWidth(borderWidthBeforeChange);
-        else if (target instanceof EllipseShape) ((EllipseShape) target).setBorderWidth(borderWidthBeforeChange);
-
-        // 创建一个只改变宽度的匿名命令
-        Command command = new Command() {
-            private final double fromValue = borderWidthBeforeChange;
-            private final double toValue = newWidth;
-
             @Override
-            public void execute() {
-                if (target instanceof RectangleShape) ((RectangleShape) target).setBorderWidth(toValue);
-                else if (target instanceof EllipseShape) ((EllipseShape) target).setBorderWidth(toValue);
-                updateUI();
-            }
-            @Override
-            public void undo() {
-                if (target instanceof RectangleShape) ((RectangleShape) target).setBorderWidth(fromValue);
-                else if (target instanceof EllipseShape) ((EllipseShape) target).setBorderWidth(fromValue);
-                updateUI();
-            }
-        };
+            public void mouseReleased(MouseEvent e) {
+                if (!isSpinnerDragging) return;
+                
+                isSpinnerDragging = false;
+                
+                double newWidth = ((Number)mainFrame.getBorderWidthSpinner().getValue()).doubleValue();
 
-        undoManager.executeCommand(command);
-        markAsDirty();
-    }
-}
+                if (newWidth != borderWidthBeforeChange) {
+                    // [!] 直接创建命令，不再获取多余的 color 和 style
+                    Object target = selectedObject;
+                    
+                    // 先把模型状态恢复到操作前
+                    if (target instanceof RectangleShape) ((RectangleShape) target).setBorderWidth(borderWidthBeforeChange);
+                    else if (target instanceof EllipseShape) ((EllipseShape) target).setBorderWidth(borderWidthBeforeChange);
+
+                    // 创建一个只改变宽度的匿名命令
+                    Command command = new Command() {
+                        private final double fromValue = borderWidthBeforeChange;
+                        private final double toValue = newWidth;
+
+                        @Override
+                        public void execute() {
+                            if (target instanceof RectangleShape) ((RectangleShape) target).setBorderWidth(toValue);
+                            else if (target instanceof EllipseShape) ((EllipseShape) target).setBorderWidth(toValue);
+                            updateUI();
+                        }
+                        @Override
+                        public void undo() {
+                            if (target instanceof RectangleShape) ((RectangleShape) target).setBorderWidth(fromValue);
+                            else if (target instanceof EllipseShape) ((EllipseShape) target).setBorderWidth(fromValue);
+                            updateUI();
+                        }
+                    };
+
+                    undoManager.executeCommand(command);
+                    markAsDirty();
+                }
+            }
         });
         mainFrame.getBorderStyleBox().addActionListener(e -> {
             if (isUpdatingUI || selectedObject == null) return;
@@ -497,14 +504,8 @@ public void mouseReleased(MouseEvent e) {
         });
         mainFrame.getPlayFromStartButton().addActionListener(e -> {playPresentation(true);  });
         mainFrame.getPlayButton().addActionListener(e -> { playPresentation(false);  });
-        mainFrame.getUndoMenuItem().addActionListener(e -> {
-            undoManager.undo();
-            updateUI();
-        });
-        mainFrame.getRedoMenuItem().addActionListener(e -> {
-            undoManager.redo();
-            updateUI();
-        });
+        mainFrame.getUndoMenuItem().addActionListener(e -> { undoManager.undo(); updateUI();});
+        mainFrame.getRedoMenuItem().addActionListener(e -> { undoManager.redo(); updateUI();});
     }
 
     private void attachMouseWheelListener() {
@@ -541,51 +542,30 @@ public void mouseReleased(MouseEvent e) {
         });
     }
 
-    // [!] 新增: 使用Key Bindings实现快捷键的方法
     private void attachKeyBindings() {
-        // 获取画布组件的输入映射和动作映射
-        InputMap inputMap = mainFrame.getCanvasPanel().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
-        ActionMap actionMap = mainFrame.getCanvasPanel().getActionMap();
+        // [!] 核心修复: 将快捷键绑定到 JFrame 的根面板，而不是 CanvasPanel
+        JRootPane rootPane = mainFrame.getRootPane();
+        InputMap inputMap = rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        ActionMap actionMap = rootPane.getActionMap();
 
-        // --- 绑定 Delete 键 ---
-        // 1. 定义一个唯一的字符串标识这个动作
+        // --- 绑定 Delete 和 Backspace ---
         String deleteActionKey = "deleteAction";
-        // 2. 创建一个 KeyStroke 对象来代表 Delete 键
         KeyStroke deleteKeyStroke = KeyStroke.getKeyStroke("DELETE");
-        // 3. 将按键和动作标识关联起来
-        inputMap.put(deleteKeyStroke, deleteActionKey);
-
-        // --- 绑定 Backspace 键 ---
-        // 在macOS上，删除键通常是 Backspace
         KeyStroke backspaceKeyStroke = KeyStroke.getKeyStroke("BACK_SPACE");
-        inputMap.put(backspaceKeyStroke, deleteActionKey); // 同样映射到 deleteActionKey
-
-        // 4. 创建一个 AbstractAction 对象，它包含了要执行的具体逻辑
-        AbstractAction deleteAction = new AbstractAction() {
+        inputMap.put(deleteKeyStroke, deleteActionKey);
+        inputMap.put(backspaceKeyStroke, deleteActionKey);
+        actionMap.put(deleteActionKey, new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                // 这里的逻辑和之前右键菜单里的删除逻辑完全一样
                 if (selectedObject != null) {
-                    // // System.out.println("Delete/Backspace key pressed, deleting object."); // 调试信息
-                    // markAsDirty();
-                    // presentation.getCurrentSlide().removeObject(selectedObject);
-                    // setSelectedObject(null);
-                    // updatePropertiesPanel();
-                    // mainFrame.getCanvasPanel().repaint();
-                    // repaintThumbnails();// 刷新缩略图面板
-                    // [!] 核心修改:
+                    markAsDirty();
                     Command command = new DeleteObjectCommand(presentation.getCurrentSlide(), selectedObject);
                     undoManager.executeCommand(command);
-
-                    markAsDirty();
                     setSelectedObject(null);
                     updateUI();
                 }
             }
-        };
-
-        // 5. 将动作标识和具体的动作逻辑关联起来
-        actionMap.put(deleteActionKey, deleteAction);
+        });
 
         // --- 绑定 Undo (Ctrl+Z) ---
         String undoActionKey = "undoAction";
@@ -593,23 +573,23 @@ public void mouseReleased(MouseEvent e) {
         inputMap.put(undoKeyStroke, undoActionKey);
         actionMap.put(undoActionKey, new AbstractAction() {
             public void actionPerformed(ActionEvent e) {
+                System.out.println(">>> Undo Action Triggered! (Ctrl+Z pressed)");
                 undoManager.undo();
-                updateUI(); // 撤销后需要更新整个UI
+                updateUI();
             }
         });
 
-        // --- 绑定 Redo (Ctrl+Y 或 Ctrl+Shift+Z) ---
+        // --- 绑定 Redo (Ctrl+Y or Ctrl+Shift+Z) ---
         String redoActionKey = "redoAction";
-        // Windows/Linux: Ctrl+Y
         KeyStroke redoKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_Y, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
-        // macOS: Cmd+Shift+Z
         KeyStroke redoShiftZKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_Z, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx() | InputEvent.SHIFT_DOWN_MASK);
         inputMap.put(redoKeyStroke, redoActionKey);
         inputMap.put(redoShiftZKeyStroke, redoActionKey);
         actionMap.put(redoActionKey, new AbstractAction() {
             public void actionPerformed(ActionEvent e) {
+                System.out.println(">>> Redo Action Triggered! (Ctrl+Y pressed)");
                 undoManager.redo();
-                updateUI(); // 重做后需要更新整个UI
+                updateUI();
             }
         });
 
@@ -619,82 +599,78 @@ public void mouseReleased(MouseEvent e) {
         inputMap.put(f5KeyStroke, playActionKey);
         actionMap.put(playActionKey, new AbstractAction() {
             public void actionPerformed(ActionEvent e) {
-                playPresentation(true); // 同样调用新方法，并传入 true
+                playPresentation(true);
             }
         });
     }
 
-
-
-    // --- 业务逻辑方法 (被策略类或监听器回调) ---
-
     public void updatePropertiesPanel() {
-        boolean enableColorButton = selectedObject != null && (selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape || selectedObject instanceof LineShape || selectedObject instanceof TextBox);
-        JButton colorButton = mainFrame.getChangeColorButton();
-        colorButton.setEnabled(enableColorButton);
-        if (selectedObject instanceof LineShape) colorButton.setText("更改线条颜色");
-        else if (selectedObject instanceof TextBox) colorButton.setText("更改文字颜色");
-        else colorButton.setText("更改填充颜色");
-        
-        boolean enableTextButton = selectedObject != null && selectedObject instanceof TextBox;
-        mainFrame.getEditTextButton().setEnabled(enableTextButton);
+        // --- 锁住UI更新 ---
+        isUpdatingUI = true;
+        try {
+            boolean isTextSelected = selectedObject instanceof TextBox;
+            boolean hasBorder = selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape;
 
-        // --- 更新字体样式控件 ---
-        boolean isTextSelected = selectedObject instanceof TextBox;
-        mainFrame.getFontNameBox().setEnabled(isTextSelected);
-        mainFrame.getFontSizeSpinner().setEnabled(isTextSelected);
-        mainFrame.getBoldCheckBox().setEnabled(isTextSelected);
-        mainFrame.getItalicCheckBox().setEnabled(isTextSelected);
-
-        if (isTextSelected) {
-            // [核心] 开始用模型数据更新UI前，设置标志位
-            isUpdatingUI = true;
+            // --- 更新所有控件的【可见性】和【可用性】 ---
+            mainFrame.getChangeColorButton().setEnabled(selectedObject != null);
+            mainFrame.getEditTextButton().setEnabled(isTextSelected);
+            mainFrame.getFontNameBox().setEnabled(isTextSelected);
+            mainFrame.getFontSizeSpinner().setEnabled(isTextSelected);
+            mainFrame.getBoldCheckBox().setEnabled(isTextSelected);
+            mainFrame.getItalicCheckBox().setEnabled(isTextSelected);
             
-            TextBox tb = (TextBox) selectedObject;
-            Font f = tb.getFont();
-            
-            mainFrame.getFontNameBox().setSelectedItem(f.getFamily());
-            mainFrame.getFontSizeSpinner().setValue(f.getSize());
-            mainFrame.getBoldCheckBox().setSelected(f.isBold());
-            mainFrame.getItalicCheckBox().setSelected(f.isItalic());
-            
-            // [核心] 更新UI结束后，清除标志位
-            isUpdatingUI = false;
-        }
+            // [!] 核心修复: 同时设置 setVisible 和 setEnabled
+            mainFrame.getBorderColorButton().setVisible(hasBorder);
+            mainFrame.getBorderColorButton().setEnabled(hasBorder);
+            mainFrame.getBorderWidthSpinner().getParent().setVisible(hasBorder);
+            mainFrame.getBorderWidthSpinner().setEnabled(hasBorder); // 注意：是对Spinner本身设置
+            mainFrame.getBorderStyleBox().getParent().setVisible(hasBorder);
+            mainFrame.getBorderStyleBox().setEnabled(hasBorder);
 
-        // [!] 新增: 边框控件的可见性/可用性
-        boolean hasBorder = selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape;
-        mainFrame.getBorderColorButton().setVisible(hasBorder);
-        mainFrame.getBorderWidthSpinner().getParent().setVisible(hasBorder); // getParent() to get the JPanel
-        mainFrame.getBorderStyleBox().getParent().setVisible(hasBorder); // [!] 新增: 控制线型选择器的可见性
-
-        if (hasBorder) {
-            mainFrame.getBorderColorButton().setEnabled(true);
-            mainFrame.getBorderWidthSpinner().setEnabled(true);
-            mainFrame.getBorderStyleBox().setEnabled(true); // [!] 新增: 启用
-
-            if (selectedObject instanceof RectangleShape) {
-                RectangleShape rect = (RectangleShape) selectedObject;
-                mainFrame.getBorderWidthSpinner().setValue(rect.getBorderWidth());
-                // [!] 新增: 根据模型状态更新UI
-                if (rect.getBorderWidth() == 0) {
-                    mainFrame.getBorderStyleBox().setSelectedIndex(3); // "无边框"
-                } else {
-                    mainFrame.getBorderStyleBox().setSelectedIndex(rect.getBorderStyle());
+            // --- 用模型数据【设置】所有控件的值 ---
+            if (selectedObject != null) {
+                // 设置颜色按钮的文字
+                if (selectedObject instanceof LineShape) mainFrame.getChangeColorButton().setText("更改线条颜色");
+                else if (selectedObject instanceof TextBox) mainFrame.getChangeColorButton().setText("更改文字颜色");
+                else mainFrame.getChangeColorButton().setText("更改填充颜色");
+                
+                // 如果是文本，设置字体属性
+                if (isTextSelected) {
+                    TextBox tb = (TextBox) selectedObject;
+                    Font f = tb.getFont();
+                    mainFrame.getFontNameBox().setSelectedItem(f.getFamily());
+                    mainFrame.getFontSizeSpinner().setValue(f.getSize());
+                    mainFrame.getBoldCheckBox().setSelected(f.isBold());
+                    mainFrame.getItalicCheckBox().setSelected(f.isItalic());
                 }
-            } else if (selectedObject instanceof EllipseShape) {
-                EllipseShape ellipse = (EllipseShape) selectedObject;
-                mainFrame.getBorderWidthSpinner().setValue(ellipse.getBorderWidth());
-                // [!] 新增
-                if (ellipse.getBorderWidth() == 0) {
-                    mainFrame.getBorderStyleBox().setSelectedIndex(3);
-                } else {
-                    mainFrame.getBorderStyleBox().setSelectedIndex(ellipse.getBorderStyle());
+
+                // 如果有边框，设置边框属性
+                if (hasBorder) {
+                    double borderWidth = 0;
+                    int borderStyle = 0;
+                    if (selectedObject instanceof RectangleShape) {
+                        RectangleShape rect = (RectangleShape) selectedObject;
+                        borderWidth = rect.getBorderWidth();
+                        borderStyle = rect.getBorderStyle();
+                    } else if (selectedObject instanceof EllipseShape) {
+                        EllipseShape ellipse = (EllipseShape) selectedObject;
+                        borderWidth = ellipse.getBorderWidth();
+                        borderStyle = ellipse.getBorderStyle();
+                    }
+                    mainFrame.getBorderWidthSpinner().setValue(borderWidth);
+                    if (borderWidth == 0) {
+                        mainFrame.getBorderStyleBox().setSelectedIndex(3);
+                    } else {
+                        mainFrame.getBorderStyleBox().setSelectedIndex(borderStyle);
+                    }
                 }
             }
+        } finally {
+            // --- 解锁UI更新 ---
+            isUpdatingUI = false;
         }
-
     }
+
 
     private void changeSelectedObjectColor() {
         if (selectedObject == null) return;
@@ -838,6 +814,7 @@ public void mouseReleased(MouseEvent e) {
         updateThumbnailList();
         mainFrame.getCanvasPanel().repaint();
         updatePropertiesPanel();
+        updateMenuState();
     }
     
     // [!] 新增: 更新左侧缩略图列表的核心方法

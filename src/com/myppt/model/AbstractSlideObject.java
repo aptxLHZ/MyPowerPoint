@@ -15,6 +15,7 @@ import java.awt.Rectangle;
  * 它定义了所有元素都必须具备的公共属性和行为。
  */
 public abstract class AbstractSlideObject implements Serializable {
+    
     private static final long serialVersionUID = 1L;
     
     // 所有元素都有x, y坐标
@@ -98,4 +99,5 @@ public abstract class AbstractSlideObject implements Serializable {
     public abstract Rectangle getBounds();
 
     public abstract void setBounds(Rectangle bounds);
+
 }

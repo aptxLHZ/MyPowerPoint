@@ -32,4 +32,41 @@ public class Slide implements Serializable {
     public void removeObject(AbstractSlideObject object) {
         this.slideObjects.remove(object);
     }
+
+    public void bringToFront(AbstractSlideObject object) {
+        if (slideObjects.remove(object)) {
+            slideObjects.add(object); // 移动到列表末尾
+        }
+    }
+
+    public void sendToBack(AbstractSlideObject object) {
+        if (slideObjects.remove(object)) {
+            slideObjects.add(0, object); // 移动到列表开头
+        }
+    }
+    
+    public void bringForward(AbstractSlideObject object) {
+        int currentIndex = slideObjects.indexOf(object);
+        if (currentIndex < slideObjects.size() - 1) { // 确保不是最顶层
+            // 先移除，再插入到下一个位置
+            slideObjects.remove(currentIndex);
+            slideObjects.add(currentIndex + 1, object);
+        }
+    }
+
+    public void sendBackward(AbstractSlideObject object) {
+        int currentIndex = slideObjects.indexOf(object);
+        if (currentIndex > 0) { // 确保不是最底层
+            // 先移除，再插入到前一个位置
+            slideObjects.remove(currentIndex);
+            slideObjects.add(currentIndex - 1, object);
+        }
+    }
+
+    // 设置对象列表的方法
+    public void setSlideObjects(java.util.List<AbstractSlideObject> objects) {
+        // 创建一个副本以保证封装性
+        this.slideObjects = new java.util.ArrayList<>(objects);
+    }
+    
 }

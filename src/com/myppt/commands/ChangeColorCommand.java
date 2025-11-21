@@ -2,7 +2,6 @@ package com.myppt.commands;
 
 import com.myppt.model.*;
 import java.awt.Color;
-import java.awt.Font;
 
 // 这是一个更复杂的通用命令，我们先用简单版本
 
