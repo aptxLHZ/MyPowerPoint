@@ -13,6 +13,10 @@ import com.myppt.model.LineShape;
 // import com.myppt.model.Presentation;
 import com.myppt.model.Slide;
 import com.myppt.view.MainFrame;
+import com.myppt.commands.DeleteObjectCommand;
+import com.myppt.commands.Command;
+import com.myppt.commands.Command;
+import com.myppt.commands.TransformCommand;
 
 import javax.swing.JMenuItem;  // [!] 新增
 import javax.swing.JPopupMenu; // [!] 新增
@@ -40,55 +44,53 @@ public class SelectStrategy implements InteractionStrategy {
     
     @Override
     public void mousePressed(MouseEvent e) {
-
-        // [!] 修改点: 检查是否是右键点击
         if (SwingUtilities.isRightMouseButton(e)) {
             handleRightClick(e);
-            return; // 处理完右键，直接返回
+            return;
         }
 
         Point worldPoint = appController.convertScreenToWorld(e.getPoint());
         
-        // 1. 优先检查是否点中了已选中对象的控制点
+        // 清理上一次操作可能遗留的状态
+        activeResizeHandle = null;
+        originalBounds = null;
+        dragStartPoint = null;
+        objectStartPoint = null;
+
+        // 1. 检查是否点中已选中对象的控制点
         if (selectedObject != null) {
             for (Map.Entry<ResizeHandle, Rectangle> entry : selectedObject.getResizeHandles().entrySet()) {
                 if (entry.getValue().contains(worldPoint)) {
                     activeResizeHandle = entry.getKey();
-                    originalBounds = selectedObject.getBounds();
-                    dragStartPoint = worldPoint;
-                    
-                    // [!] 核心修改: 在开始缩放时，计算并存储当前的宽高比
-                    if (originalBounds.height != 0) {
-                        aspectRatio = (double) originalBounds.width / originalBounds.height;
-                    } else {
-                        aspectRatio = 1.0; // 防止除以零
-                    }
-
-                    mainFrame.getCanvasPanel().repaint();
-                    appController.repaintThumbnails();
-                    return;
+                    break; // 找到即可
                 }
             }
         }
         
-        // 2. 如果没点中控制点，再执行之前的选取/移动逻辑
-        AbstractSlideObject clickedObject = findObjectAtPoint(worldPoint);
+        // 2. 如果没有点中控制点，则尝试选取对象
+        if (activeResizeHandle == null) {
+            AbstractSlideObject clickedObject = findObjectAtPoint(worldPoint);
+            if (clickedObject != selectedObject) {
+                deselectAllObjects();
+                selectedObject = clickedObject;
+                if (selectedObject != null) {
+                    selectedObject.setSelected(true);
+                }
+                appController.setSelectedObject(selectedObject);
+                appController.updatePropertiesPanel();
+            }
+        }
 
-        if (clickedObject != selectedObject) {
-            deselectAllObjects();
-            selectedObject = clickedObject;
-            if (selectedObject != null) {
-                selectedObject.setSelected(true);
+        // 3. 如果最终有选中的对象（无论是新选中的还是之前就选中的），则为移动或缩放做准备
+        if (selectedObject != null) {
+            originalBounds = selectedObject.getBounds(); // 记录下【操作前】的边界
+            dragStartPoint = worldPoint;
+            objectStartPoint = new Point(selectedObject.getX(), selectedObject.getY());
+            if (originalBounds.height != 0) {
+                aspectRatio = (double) originalBounds.width / originalBounds.height;
             }
         }
         
-        if (selectedObject != null) {
-            dragStartPoint = worldPoint;
-            objectStartPoint = new Point(selectedObject.getX(), selectedObject.getY());
-        }
-        
-        appController.setSelectedObject(selectedObject);
-        appController.updatePropertiesPanel();
         mainFrame.getCanvasPanel().repaint();
         appController.repaintThumbnails();
     }
@@ -99,10 +101,10 @@ public class SelectStrategy implements InteractionStrategy {
         
         Point worldPoint = appController.convertScreenToWorld(e.getPoint());
         
+        // 实时预览，直接修改对象状态
         if (activeResizeHandle != null) {
             handleResize(worldPoint, e.isShiftDown());
         } else {
-            appController.markAsDirty();
             int dx = worldPoint.x - dragStartPoint.x;
             int dy = worldPoint.y - dragStartPoint.y;
             selectedObject.setX(objectStartPoint.x + dx);
@@ -112,6 +114,32 @@ public class SelectStrategy implements InteractionStrategy {
         mainFrame.getCanvasPanel().repaint();
         appController.repaintThumbnails();
     }
+
+    @Override
+    public void mouseReleased(MouseEvent e) {
+        // 只有在刚刚进行了一次拖动或缩放操作后才需要创建命令
+        if (selectedObject != null && originalBounds != null) {
+            Rectangle newBounds = selectedObject.getBounds();
+
+            // 只有当边界真的发生了变化时才创建命令
+            if (!originalBounds.equals(newBounds)) {
+                // 注意: 我们不再把对象状态恢复到oldBounds
+                Command command = new TransformCommand(selectedObject, originalBounds, newBounds);
+                
+                // 我们需要一个新的方法来只入栈，不执行
+                // 我们先改造 UndoManager
+                appController.getUndoManager().addCommand(command);
+                appController.markAsDirty();
+            }
+        }
+
+        // 清理本次操作的状态
+        activeResizeHandle = null;
+        originalBounds = null;
+        dragStartPoint = null;
+        objectStartPoint = null;
+    }
+    
 
     /**
      * 核心的缩放计算方法，现在支持对所有对象的通用等比例缩放。
@@ -236,14 +264,7 @@ public class SelectStrategy implements InteractionStrategy {
     }
 
 
-    @Override
-    public void mouseReleased(MouseEvent e) {
-        dragStartPoint = null;
-        objectStartPoint = null;
-        // [!] 核心修复: 缩放结束后，必须重置缩放状态
-        activeResizeHandle = null; 
-        originalBounds = null;
-    }
+    
   
     @Override
     public void mouseMoved(MouseEvent e) {
@@ -311,12 +332,12 @@ public class SelectStrategy implements InteractionStrategy {
             // 为“删除”菜单项添加动作监听器
             deleteItem.addActionListener(actionEvent -> {
                 if (selectedObject != null) {
+                    Command command = new DeleteObjectCommand(appController.getPresentation().getCurrentSlide(), selectedObject);
+                    appController.getUndoManager().executeCommand(command);
+                    
                     appController.markAsDirty();
-                    appController.getPresentation().getCurrentSlide().removeObject(selectedObject);
                     appController.setSelectedObject(null);
-                    appController.updatePropertiesPanel();
-                    mainFrame.getCanvasPanel().repaint();
-                    appController.repaintThumbnails();
+                    appController.updateUI();
                 }
             });
             

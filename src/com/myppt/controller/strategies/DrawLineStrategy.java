@@ -8,6 +8,8 @@ import com.myppt.controller.AppController;
 import com.myppt.model.LineShape;
 // import com.myppt.model.Presentation;
 import com.myppt.view.MainFrame;
+import com.myppt.commands.AddObjectCommand;
+import com.myppt.commands.Command;
 
 public class DrawLineStrategy implements InteractionStrategy {
     private AppController appController;
@@ -26,10 +28,15 @@ public class DrawLineStrategy implements InteractionStrategy {
         Point worldPoint = appController.convertScreenToWorld(e.getPoint());
         if (appController.isPointInPage(worldPoint)) {
             currentDrawingLine = new LineShape(worldPoint.x, worldPoint.y, worldPoint.x, worldPoint.y, Color.BLACK, 2f);
-            appController.getPresentation().getCurrentSlide().addObject(currentDrawingLine);
+            
+            // [!] 核心: 在按下鼠标时就创建并执行 AddObjectCommand
+            Command command = new AddObjectCommand(appController.getPresentation().getCurrentSlide(), currentDrawingLine);
+            appController.getUndoManager().executeCommand(command);
+            appController.markAsDirty();
+            
+            mainFrame.getCanvasPanel().repaint();
+            appController.repaintThumbnails();
         }
-        mainFrame.getCanvasPanel().repaint();
-        appController.repaintThumbnails();
     }
 
     @Override
@@ -45,7 +52,7 @@ public class DrawLineStrategy implements InteractionStrategy {
 
     @Override
     public void mouseReleased(MouseEvent e) {
-        appController.markAsDirty();
+        // appController.markAsDirty();
         currentDrawingLine = null;
         appController.setMode("SELECT");
     }

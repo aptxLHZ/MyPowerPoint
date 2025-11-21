@@ -1,5 +1,4 @@
 package com.myppt.controller;
-import com.myppt.view.PlayerFrame; 
 
 import java.awt.Color;
 import java.awt.Font;
@@ -36,14 +35,24 @@ import javax.swing.ActionMap;      // [!] 新增
 import javax.swing.InputMap;       // [!] 新增
 import javax.swing.JComponent;     // [!] 新增
 import javax.swing.KeyStroke;      // [!] 新增
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
 
 
+import com.myppt.view.PlayerFrame; 
 import com.myppt.controller.strategies.*; // 导入所有策略
 import com.myppt.model.*;
 import com.myppt.view.CanvasPanel;
 import com.myppt.view.MainFrame;
 import com.myppt.view.SlideThumbnail;
 import com.myppt.view.ThumbnailPanel;
+import com.myppt.commands.AddObjectCommand;
+import com.myppt.commands.Command;
+import com.myppt.commands.DeleteObjectCommand;
+import com.myppt.commands.ChangeColorCommand;
+import com.myppt.commands.ChangeTextCommand;
+import com.myppt.commands.ChangeFontCommand;
+import com.myppt.commands.ChangeBorderCommand;
 
 /**
  * 应用程序的主控制器，负责协调各个部分。
@@ -59,6 +68,8 @@ public class AppController {
     private InteractionStrategy currentStrategy; // 核心: 当前的交互策略
     private File currentFile = null; // [!] 新增: 用于追踪当前正在编辑的文件
     private boolean isDirty = false; // [!] 新增: “脏”标记
+    private UndoManager undoManager;
+    private double borderWidthBeforeChange;
 
     public AppController(Presentation presentation, MainFrame mainFrame) {
         this.presentation = presentation;
@@ -68,6 +79,7 @@ public class AppController {
         // AppController一启动，默认的策略就是“选择”策略
         this.currentStrategy = new SelectStrategy(this);
         
+        this.undoManager = new UndoManager();
         this.attachListeners();
         updateUI();
 
@@ -86,6 +98,7 @@ public class AppController {
     public String getCurrentMode() { return currentMode; }
     public AbstractSlideObject getSelectedObject() { return selectedObject; }
     public InteractionStrategy getCurrentStrategy() { return currentStrategy; }
+    public UndoManager getUndoManager() { return this.undoManager; }
     
     public void setSelectedObject(AbstractSlideObject object) {
         this.selectedObject = object;
@@ -330,27 +343,30 @@ public class AppController {
             }
         });
         Runnable updateFontAction = () -> {
-            // [核心] 如果是程序自己在更新UI，则忽略本次事件，直接返回
-            if (isUpdatingUI) {
-                return;
-            }
+        if (isUpdatingUI) return;
 
-            if (selectedObject instanceof TextBox) {
-                TextBox tb = (TextBox) selectedObject;
-                
-                String name = (String) mainFrame.getFontNameBox().getSelectedItem();
-                int size = (Integer) mainFrame.getFontSizeSpinner().getValue();
-                int style = Font.PLAIN;
-                if (mainFrame.getBoldCheckBox().isSelected()) style |= Font.BOLD;
-                if (mainFrame.getItalicCheckBox().isSelected()) style |= Font.ITALIC;
-                
-                Font newFont = new Font(name, style, size);
-                tb.setFont(newFont);
+        if (selectedObject instanceof TextBox) {
+            TextBox tb = (TextBox) selectedObject;
+            Font oldFont = tb.getFont(); // 获取旧字体
+            
+            String name = (String) mainFrame.getFontNameBox().getSelectedItem();
+            int size = (Integer) mainFrame.getFontSizeSpinner().getValue();
+            int style = Font.PLAIN;
+            if (mainFrame.getBoldCheckBox().isSelected()) style |= Font.BOLD;
+            if (mainFrame.getItalicCheckBox().isSelected()) style |= Font.ITALIC;
+            
+            Font newFont = new Font(name, style, size);
+
+            // 只有当字体真的改变时才创建命令
+            if (!newFont.equals(oldFont)) {
+                Command command = new ChangeFontCommand(tb, newFont);
+                undoManager.executeCommand(command);
+
                 markAsDirty();
-                mainFrame.getCanvasPanel().repaint();
-                repaintThumbnails(); 
+                updateUI();
             }
-        };
+        }
+    };
         mainFrame.getFontNameBox().addActionListener(e -> updateFontAction.run());
         mainFrame.getFontSizeSpinner().addChangeListener(e -> updateFontAction.run());
         mainFrame.getBoldCheckBox().addActionListener(e -> updateFontAction.run());
@@ -359,74 +375,118 @@ public class AppController {
         mainFrame.getSaveMenuItem().addActionListener(e -> saveToFile());
         mainFrame.getNewMenuItem().addActionListener(e -> newFile());
         mainFrame.getSaveAsMenuItem().addActionListener(e -> saveAsToFile());
-        mainFrame.getBorderColorButton().addActionListener(e -> {
-            if (selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape) {
-                Color currentColor = Color.BLACK;
-                if (selectedObject instanceof RectangleShape) {
-                    currentColor = ((RectangleShape) selectedObject).getBorderColor();
-                } else if (selectedObject instanceof EllipseShape) {
-                    currentColor = ((EllipseShape) selectedObject).getBorderColor();
-                }
+    // --- 边框颜色按钮监听器 (使用ChangeBorderCommand) ---
+    mainFrame.getBorderColorButton().addActionListener(e -> {
+        if (isUpdatingUI || selectedObject == null) return;
+        if (!(selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape)) return;
 
-                Color newColor = JColorChooser.showDialog(mainFrame, "选择边框颜色", currentColor);
-                if (newColor != null) {
-                    if (selectedObject instanceof RectangleShape) {
-                        ((RectangleShape) selectedObject).setBorderColor(newColor);
-                    } else if (selectedObject instanceof EllipseShape) {
-                        ((EllipseShape) selectedObject).setBorderColor(newColor);
-                    }
-                    markAsDirty();
-                    mainFrame.getCanvasPanel().repaint();
-                    repaintThumbnails();
-                }
+        // 获取当前所有边框属性
+        Color currentColor = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderColor() : ((EllipseShape) selectedObject).getBorderColor();
+        double currentWidth = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderWidth() : ((EllipseShape) selectedObject).getBorderWidth();
+        int currentStyle = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderStyle() : ((EllipseShape) selectedObject).getBorderStyle();
+        
+        Color newColor = JColorChooser.showDialog(mainFrame, "选择边框颜色", currentColor);
+        
+        if (newColor != null && !newColor.equals(currentColor)) {
+            // 创建命令时，只改变颜色，其他属性保持不变
+            Command command = new ChangeBorderCommand(selectedObject, newColor, currentWidth, currentStyle);
+            undoManager.executeCommand(command);
+
+            markAsDirty();
+            updateUI();
+        }
+    });
+
+
+    // --- 边框粗细微调器监听器 (特殊处理Undo) ---
+    mainFrame.getBorderWidthSpinner().addChangeListener(e -> {
+        if (isUpdatingUI || selectedObject == null) return;
+        if (!(selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape)) return;
+
+        // ChangeListener 只是实时更新UI，不创建命令
+        double newWidth = ((Number)mainFrame.getBorderWidthSpinner().getValue()).doubleValue();
+        if (selectedObject instanceof RectangleShape) {
+            ((RectangleShape) selectedObject).setBorderWidth(newWidth);
+        } else {
+            ((EllipseShape) selectedObject).setBorderWidth(newWidth);
+        }
+        markAsDirty();
+        mainFrame.getCanvasPanel().repaint();
+        repaintThumbnails();
+        // 实时更新可能会影响线型下拉框的状态（比如宽度变为0）
+        updatePropertiesPanel();
+    });
+    // 为JSpinner添加MouseListener，在鼠标【松开】时才创建命令
+    mainFrame.getBorderWidthSpinner().addMouseListener(new MouseAdapter() {
+        @Override
+        public void mousePressed(MouseEvent e) {
+            // 鼠标按下时，记录下操作前的宽度
+            if (selectedObject instanceof RectangleShape) {
+                borderWidthBeforeChange = ((RectangleShape) selectedObject).getBorderWidth();
+            } else if (selectedObject instanceof EllipseShape) {
+                borderWidthBeforeChange = ((EllipseShape) selectedObject).getBorderWidth();
             }
-        });
-        mainFrame.getBorderStyleBox().addActionListener(e -> {
-            if (isUpdatingUI) return; // 防止UI串扰
-            if (selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape) {
-                int selectedIndex = mainFrame.getBorderStyleBox().getSelectedIndex();
+        }
+        @Override
+        public void mouseReleased(MouseEvent e) {
+            // 鼠标松开时，比较新旧值，如果不同，则创建命令
+            double newWidth = ((Number)mainFrame.getBorderWidthSpinner().getValue()).doubleValue();
+            if (newWidth != borderWidthBeforeChange) {
+                // 获取其他属性的当前值
+                Color currentColor = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderColor() : ((EllipseShape) selectedObject).getBorderColor();
+                int currentStyle = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderStyle() : ((EllipseShape) selectedObject).getBorderStyle();
                 
-                // "无边框" 选项被选中
-                if (selectedIndex == 3) {
-                    if (selectedObject instanceof RectangleShape) {
-                        ((RectangleShape) selectedObject).setBorderWidth(0f);
-                    } else {
-                        ((EllipseShape) selectedObject).setBorderWidth(0f);
+                // 创建一个能恢复到旧宽度的命令
+                Object target = selectedObject;
+                undoManager.executeCommand(new Command() {
+                    public void execute() {
+                        // execute时，我们已经是新宽度了，所以什么都不用做
+                        // 但为了重做功能，还是需要设置一下
+                        if (target instanceof RectangleShape) ((RectangleShape) target).setBorderWidth(newWidth);
+                        else if (target instanceof EllipseShape) ((EllipseShape) target).setBorderWidth(newWidth);
                     }
-                } else {
-                    // 如果之前是"无边框"，切换回来时给一个默认宽度
-                    if (selectedObject instanceof RectangleShape) {
-                        RectangleShape rect = (RectangleShape) selectedObject;
-                        if (rect.getBorderWidth() == 0) rect.setBorderWidth(1.0f);
-                        rect.setBorderStyle(selectedIndex);
-                    } else if (selectedObject instanceof EllipseShape) {
-                        EllipseShape ellipse = (EllipseShape) selectedObject;
-                        if (ellipse.getBorderWidth() == 0) ellipse.setBorderWidth(1.0f);
-                        ellipse.setBorderStyle(selectedIndex);
+                    public void undo() {
+                        if (target instanceof RectangleShape) ((RectangleShape) target).setBorderWidth(borderWidthBeforeChange);
+                        else if (target instanceof EllipseShape) ((EllipseShape) target).setBorderWidth(borderWidthBeforeChange);
                     }
-                }
-                
-                markAsDirty();
-                mainFrame.getCanvasPanel().repaint();
-                repaintThumbnails();
-                updatePropertiesPanel(); // 需要调用这个来同步 "粗细" 微调器的状态
+                });
             }
-        });
-        mainFrame.getBorderWidthSpinner().addChangeListener(e -> {
-            if (isUpdatingUI) return; // 防止UI串扰
-            if (selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape) {
-                double newWidth = ((Number)mainFrame.getBorderWidthSpinner().getValue()).floatValue();
-                if (selectedObject instanceof RectangleShape) {
-                    ((RectangleShape) selectedObject).setBorderWidth(newWidth);
-                } else {
-                    ((EllipseShape) selectedObject).setBorderWidth(newWidth);
-                }
-                markAsDirty();
-                mainFrame.getCanvasPanel().repaint();
-                repaintThumbnails();
-                updatePropertiesPanel(); // 宽度改变可能会影响到"无边框"选项
+        }
+    });
+
+
+    // --- 边框线型选择框监听器 (使用ChangeBorderCommand) ---
+    mainFrame.getBorderStyleBox().addActionListener(e -> {
+        if (isUpdatingUI || selectedObject == null) return;
+        if (!(selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape)) return;
+
+        int selectedIndex = mainFrame.getBorderStyleBox().getSelectedIndex();
+        
+        // 获取当前其他属性的值
+        Color currentColor = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderColor() : ((EllipseShape) selectedObject).getBorderColor();
+        double currentWidth = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderWidth() : ((EllipseShape) selectedObject).getBorderWidth();
+        
+        double newWidth = currentWidth;
+        int newStyle = selectedIndex;
+
+        // 处理“无边框”选项
+        if (selectedIndex == 3) {
+            newWidth = 0;
+            // 保持原有的线型，以便恢复
+            newStyle = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderStyle() : ((EllipseShape) selectedObject).getBorderStyle();
+        } else {
+            // 如果之前是“无边框”，切换回来时给一个默认宽度
+            if (currentWidth == 0) {
+                newWidth = 1.0;
             }
-        });
+        }
+
+        Command command = new ChangeBorderCommand(selectedObject, currentColor, newWidth, newStyle);
+        undoManager.executeCommand(command);
+
+        markAsDirty();
+        updateUI();
+    });
         mainFrame.getPlayButton().addActionListener(e -> {
             // 隐藏主窗口 (可选，但体验更好)
             mainFrame.setVisible(false); 
@@ -447,6 +507,14 @@ public class AppController {
             });
             player.start();
 
+        });
+        mainFrame.getUndoMenuItem().addActionListener(e -> {
+            undoManager.undo();
+            updateUI();
+        });
+        mainFrame.getRedoMenuItem().addActionListener(e -> {
+            undoManager.redo();
+            updateUI();
         });
     }
 
@@ -509,19 +577,52 @@ public class AppController {
             public void actionPerformed(ActionEvent e) {
                 // 这里的逻辑和之前右键菜单里的删除逻辑完全一样
                 if (selectedObject != null) {
-                    // System.out.println("Delete/Backspace key pressed, deleting object."); // 调试信息
+                    // // System.out.println("Delete/Backspace key pressed, deleting object."); // 调试信息
+                    // markAsDirty();
+                    // presentation.getCurrentSlide().removeObject(selectedObject);
+                    // setSelectedObject(null);
+                    // updatePropertiesPanel();
+                    // mainFrame.getCanvasPanel().repaint();
+                    // repaintThumbnails();// 刷新缩略图面板
+                    // [!] 核心修改:
+                    Command command = new DeleteObjectCommand(presentation.getCurrentSlide(), selectedObject);
+                    undoManager.executeCommand(command);
+
                     markAsDirty();
-                    presentation.getCurrentSlide().removeObject(selectedObject);
                     setSelectedObject(null);
-                    updatePropertiesPanel();
-                    mainFrame.getCanvasPanel().repaint();
-                    repaintThumbnails();// 刷新缩略图面板
+                    updateUI();
                 }
             }
         };
 
         // 5. 将动作标识和具体的动作逻辑关联起来
         actionMap.put(deleteActionKey, deleteAction);
+
+        // --- 绑定 Undo (Ctrl+Z) ---
+        String undoActionKey = "undoAction";
+        KeyStroke undoKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_Z, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
+        inputMap.put(undoKeyStroke, undoActionKey);
+        actionMap.put(undoActionKey, new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                undoManager.undo();
+                updateUI(); // 撤销后需要更新整个UI
+            }
+        });
+
+        // --- 绑定 Redo (Ctrl+Y 或 Ctrl+Shift+Z) ---
+        String redoActionKey = "redoAction";
+        // Windows/Linux: Ctrl+Y
+        KeyStroke redoKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_Y, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
+        // macOS: Cmd+Shift+Z
+        KeyStroke redoShiftZKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_Z, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx() | InputEvent.SHIFT_DOWN_MASK);
+        inputMap.put(redoKeyStroke, redoActionKey);
+        inputMap.put(redoShiftZKeyStroke, redoActionKey);
+        actionMap.put(redoActionKey, new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                undoManager.redo();
+                updateUI(); // 重做后需要更新整个UI
+            }
+        });
     }
 
 
@@ -605,12 +706,12 @@ public class AppController {
         else if (selectedObject instanceof TextBox) currentColor = ((TextBox) selectedObject).getTextColor();
         
         Color newColor = JColorChooser.showDialog(mainFrame, "选择颜色", currentColor);
-        if (newColor != null) {
+        if (newColor != null && !newColor.equals(currentColor)) {
+            // [!] 核心修改:
+            Command command = new ChangeColorCommand(selectedObject, newColor);
+            undoManager.executeCommand(command);
+
             markAsDirty();
-            if (selectedObject instanceof RectangleShape) ((RectangleShape) selectedObject).setFillColor(newColor);
-            else if (selectedObject instanceof EllipseShape) ((EllipseShape) selectedObject).setFillColor(newColor);
-            else if (selectedObject instanceof LineShape) ((LineShape) selectedObject).setLineColor(newColor);
-            else if (selectedObject instanceof TextBox) ((TextBox) selectedObject).setTextColor(newColor);
             mainFrame.getCanvasPanel().repaint();
             repaintThumbnails();
         }
@@ -626,11 +727,12 @@ public class AppController {
             int result = JOptionPane.showConfirmDialog(mainFrame, scrollPane, "修改文本内容", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
             if (result == JOptionPane.OK_OPTION) {
                 String newText = textArea.getText();
-                if (newText != null) {
+                if (newText != null && !newText.equals(selectedTextBox.getText())) {
+                    Command command = new ChangeTextCommand(selectedTextBox, newText);
+                    undoManager.executeCommand(command);
+
                     markAsDirty();
-                    selectedTextBox.setText(newText);
-                    mainFrame.getCanvasPanel().repaint();
-                    repaintThumbnails();
+                    updateUI();
                 }
             }
         }
@@ -652,10 +754,16 @@ public class AppController {
             File selectedFile = fileChooser.getSelectedFile();
             try {
                 ImageObject imageObj = new ImageObject(100, 100, selectedFile.getAbsolutePath());
-                presentation.getCurrentSlide().addObject(imageObj);
+                
+                // [!] 核心修改: 不再直接 addObject
+                // presentation.getSlides().get(0).addObject(imageObj);
+                
+                // 而是通过命令来执行
+                Command command = new AddObjectCommand(presentation.getCurrentSlide(), imageObj);
+                undoManager.executeCommand(command);
+                
                 markAsDirty();
-                mainFrame.getCanvasPanel().repaint();
-                repaintThumbnails();
+                updateUI(); // updateUI 内部包含了 repaint
             } catch (IOException ex) {
                 JOptionPane.showMessageDialog(mainFrame, "无法加载图片文件: " + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
             }

@@ -39,6 +39,8 @@ public class MainFrame extends JFrame {
     private JMenuItem openMenuItem;
     private JMenuItem saveMenuItem;
     private JMenuItem saveAsMenuItem;
+    private JMenuItem undoMenuItem;
+    private JMenuItem redoMenuItem; 
 
     private JComboBox<String> borderStyleBox;
 
@@ -51,6 +53,7 @@ public class MainFrame extends JFrame {
 
     JMenuBar menuBar = new JMenuBar();
     JToolBar toolBar = new JToolBar();
+
     setLayout(new BorderLayout());
 
     JMenu fileMenu = new JMenu("文件");
@@ -65,6 +68,15 @@ public class MainFrame extends JFrame {
     fileMenu.add(saveAsMenuItem); 
 
     menuBar.add(fileMenu);
+
+    // --- 编辑菜单 ---
+    JMenu editMenu = new JMenu("编辑");
+    undoMenuItem = new JMenuItem("撤销");
+    redoMenuItem = new JMenuItem("重做");
+    editMenu.add(undoMenuItem);
+    editMenu.add(redoMenuItem);
+    menuBar.add(editMenu);
+
     setJMenuBar(menuBar);
 
     // --- 工具栏按钮 ---
@@ -261,4 +273,6 @@ public class MainFrame extends JFrame {
     public JSpinner getBorderWidthSpinner() { return borderWidthSpinner; }
     public JComboBox<String> getBorderStyleBox() { return borderStyleBox; }
     public JButton getPlayButton() { return playButton; }
+    public JMenuItem getUndoMenuItem() { return undoMenuItem; }
+    public JMenuItem getRedoMenuItem() { return redoMenuItem; }
 }

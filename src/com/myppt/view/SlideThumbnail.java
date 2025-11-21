@@ -1,8 +1,11 @@
 package com.myppt.view;
 
-import javax.swing.*;
-// import javax.swing.border.Border;
-import java.awt.*;
+import javax.swing.BorderFactory;
+import javax.swing.JPanel;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 
 import com.myppt.model.Slide;
 
@@ -12,19 +15,23 @@ import com.myppt.model.Slide;
 public class SlideThumbnail extends JPanel {
     private Slide slide;
     private int pageNumber;
+
     private static final int THUMB_WIDTH = 180;
     private static final int THUMB_HEIGHT = 101; // 180 * 9/16
 
-    public static int getThumbWidth(){return THUMB_WIDTH;}
+    public static int getThumbWidth() {
+        return THUMB_WIDTH;
+    }
 
     public SlideThumbnail(Slide slide, int pageNumber) {
         this.slide = slide;
         this.pageNumber = pageNumber;
-        Dimension size = new Dimension(THUMB_WIDTH, THUMB_HEIGHT + 20);
+        
+        Dimension size = new Dimension(THUMB_WIDTH, THUMB_HEIGHT + 20); // 加上下方页码的空间
         setPreferredSize(size);
-        setMinimumSize(size);   // [!] 新增
-        setMaximumSize(size);   // [!] 新增
-        setBorder(BorderFactory.createLineBorder(Color.GRAY)); 
+        setMinimumSize(size);
+        setMaximumSize(size);
+        setBorder(BorderFactory.createLineBorder(Color.GRAY));
     }
 
     @Override
@@ -32,29 +39,35 @@ public class SlideThumbnail extends JPanel {
         super.paintComponent(g);
         Graphics2D g2d = (Graphics2D) g.create();
 
+        // 开启抗锯齿，让缩略图更平滑
+        g2d.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+        g2d.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING, java.awt.RenderingHints.VALUE_RENDER_QUALITY);
+
         // 绘制白色背景
         g2d.setColor(Color.WHITE);
         g2d.fillRect(0, 0, THUMB_WIDTH, THUMB_HEIGHT);
+        g2d.setColor(Color.BLACK);
+        g2d.drawRect(0, 0, THUMB_WIDTH - 1, THUMB_HEIGHT - 1);
         
         // --- 绘制缩略图内容 ---
-        // 计算缩放比例，将1280x720的页面内容缩放到160x90的区域
         double scaleX = (double) THUMB_WIDTH / Slide.PAGE_WIDTH;
         double scaleY = (double) THUMB_HEIGHT / Slide.PAGE_HEIGHT;
         g2d.scale(scaleX, scaleY);
         
-        // 遍历并绘制slide中的所有对象
+        // 设置裁剪区域，防止内容画出缩略图边界
+        g2d.setClip(0, 0, Slide.PAGE_WIDTH, Slide.PAGE_HEIGHT);
+
         for (com.myppt.model.AbstractSlideObject object : slide.getSlideObjects()) {
             object.draw(g2d);
         }
 
         g2d.dispose();
 
-        // 绘制页码（暂不实现，仅作占位）
+        // 绘制页码
         g.setColor(Color.BLACK);
         g.drawString("第 " + this.pageNumber + " 页", 10, THUMB_HEIGHT + 15);
     }
     
-    // [!] 新增: 设置选中状态的边框
     public void setSelected(boolean selected) {
         if (selected) {
             setBorder(BorderFactory.createLineBorder(Color.BLUE, 3));

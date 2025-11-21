@@ -11,6 +11,8 @@ import javax.swing.JTextArea;
 import com.myppt.controller.AppController;
 import com.myppt.model.*;
 import com.myppt.view.MainFrame;
+import com.myppt.commands.AddObjectCommand;
+import com.myppt.commands.Command;
 
 public class DrawObjectStrategy implements InteractionStrategy {
     private AppController appController;
@@ -34,25 +36,28 @@ public class DrawObjectStrategy implements InteractionStrategy {
             return;
         }
 
+        AbstractSlideObject newObject = null;
         switch (objectType) {
             case "RECT":
-                appController.markAsDirty();
-                appController.getPresentation().getCurrentSlide().addObject(new RectangleShape(worldPoint.x, worldPoint.y, 100, 60, Color.BLUE));
+                newObject = new RectangleShape(worldPoint.x, worldPoint.y, 100, 60, Color.BLUE);
                 break;
             case "ELLIPSE":
-                appController.markAsDirty();
-                appController.getPresentation().getCurrentSlide().addObject(new EllipseShape(worldPoint.x, worldPoint.y, 80, 80, Color.RED));
+                newObject = new EllipseShape(worldPoint.x, worldPoint.y, 80, 80, Color.RED);
                 break;
             case "TEXT":
+                // 文本处理比较特殊，因为它依赖用户输入，我们在 handleTextDraw 中处理
                 handleTextDraw(worldPoint);
-                break;
+                return; // 直接返回，不执行后续公共逻辑
         }
 
-        mainFrame.getCanvasPanel().repaint();
-        if (!objectType.equals("TEXT")) { // Text handling has its own mode switch
-             appController.setMode("SELECT");
+        if (newObject != null) {
+            Command command = new AddObjectCommand(appController.getPresentation().getCurrentSlide(), newObject);
+            appController.getUndoManager().executeCommand(command);
+            appController.markAsDirty();
+            mainFrame.getCanvasPanel().repaint();
+            appController.repaintThumbnails();
+            appController.setMode("SELECT");
         }
-        appController.repaintThumbnails();
     }
 
     private void handleTextDraw(Point worldPoint) {
@@ -67,8 +72,12 @@ public class DrawObjectStrategy implements InteractionStrategy {
             if (text != null && !text.trim().isEmpty()) {
                 Font font = new Font("宋体", Font.PLAIN, 24);
                 TextBox textBox = new TextBox(worldPoint.x, worldPoint.y, text, font, Color.BLACK);
+                
+                Command command = new AddObjectCommand(appController.getPresentation().getCurrentSlide(), textBox);
+                appController.getUndoManager().executeCommand(command);
                 appController.markAsDirty();
-                appController.getPresentation().getCurrentSlide().addObject(textBox);
+                mainFrame.getCanvasPanel().repaint();
+                appController.repaintThumbnails();
             }
         }
         appController.setMode("SELECT");
