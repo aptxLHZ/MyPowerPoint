@@ -15,7 +15,6 @@ import com.myppt.model.Slide;
 import com.myppt.view.MainFrame;
 import com.myppt.commands.DeleteObjectCommand;
 import com.myppt.commands.Command;
-import com.myppt.commands.Command;
 import com.myppt.commands.TransformCommand;
 
 import javax.swing.JMenuItem;  // [!] 新增

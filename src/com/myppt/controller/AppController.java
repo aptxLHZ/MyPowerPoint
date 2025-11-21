@@ -70,6 +70,7 @@ public class AppController {
     private boolean isDirty = false; // [!] 新增: “脏”标记
     private UndoManager undoManager;
     private double borderWidthBeforeChange;
+    private boolean isSpinnerDragging = false;
 
     public AppController(Presentation presentation, MainFrame mainFrame) {
         this.presentation = presentation;
@@ -79,11 +80,12 @@ public class AppController {
         // AppController一启动，默认的策略就是“选择”策略
         this.currentStrategy = new SelectStrategy(this);
         
-        this.undoManager = new UndoManager();
+        this.undoManager = new UndoManager(mainFrame);
         this.attachListeners();
         updateUI();
 
         updateTitle();
+        undoManager.updateMenuState();
     }
 
     // --- Getters and Setters for shared state ---
@@ -375,139 +377,126 @@ public class AppController {
         mainFrame.getSaveMenuItem().addActionListener(e -> saveToFile());
         mainFrame.getNewMenuItem().addActionListener(e -> newFile());
         mainFrame.getSaveAsMenuItem().addActionListener(e -> saveAsToFile());
-    // --- 边框颜色按钮监听器 (使用ChangeBorderCommand) ---
-    mainFrame.getBorderColorButton().addActionListener(e -> {
-        if (isUpdatingUI || selectedObject == null) return;
-        if (!(selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape)) return;
+        mainFrame.getBorderColorButton().addActionListener(e -> {
+            if (isUpdatingUI || selectedObject == null) return;
+            if (!(selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape)) return;
 
-        // 获取当前所有边框属性
-        Color currentColor = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderColor() : ((EllipseShape) selectedObject).getBorderColor();
-        double currentWidth = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderWidth() : ((EllipseShape) selectedObject).getBorderWidth();
-        int currentStyle = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderStyle() : ((EllipseShape) selectedObject).getBorderStyle();
+            // 获取当前所有边框属性
+            Color currentColor = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderColor() : ((EllipseShape) selectedObject).getBorderColor();
+            double currentWidth = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderWidth() : ((EllipseShape) selectedObject).getBorderWidth();
+            int currentStyle = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderStyle() : ((EllipseShape) selectedObject).getBorderStyle();
+            
+            Color newColor = JColorChooser.showDialog(mainFrame, "选择边框颜色", currentColor);
+            
+            if (newColor != null && !newColor.equals(currentColor)) {
+                // 创建命令时，只改变颜色，其他属性保持不变
+                Command command = new ChangeBorderCommand(selectedObject, newColor, currentWidth, currentStyle);
+                undoManager.executeCommand(command);
+
+                markAsDirty();
+                updateUI();
+            }
+        });
+        mainFrame.getBorderWidthSpinner().addChangeListener(e -> {
+            if (isUpdatingUI || selectedObject == null) return;
+            if (!(selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape)) return;
+
+            // ChangeListener 只是实时更新UI，不创建命令
+            double newWidth = ((Number)mainFrame.getBorderWidthSpinner().getValue()).doubleValue();
+            if (selectedObject instanceof RectangleShape) {
+                ((RectangleShape) selectedObject).setBorderWidth(newWidth);
+            } else {
+                ((EllipseShape) selectedObject).setBorderWidth(newWidth);
+            }
+            markAsDirty();
+            mainFrame.getCanvasPanel().repaint();
+            repaintThumbnails();
+            // 实时更新可能会影响线型下拉框的状态（比如宽度变为0）
+            updatePropertiesPanel();
+        });
+        mainFrame.getBorderWidthSpinner().addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                // 鼠标按下时，记录下操作前的宽度
+                if (selectedObject instanceof RectangleShape) {
+                    borderWidthBeforeChange = ((RectangleShape) selectedObject).getBorderWidth();
+                } else if (selectedObject instanceof EllipseShape) {
+                    borderWidthBeforeChange = ((EllipseShape) selectedObject).getBorderWidth();
+                }
+            }
+@Override
+public void mouseReleased(MouseEvent e) {
+    if (!isSpinnerDragging) return;
+    
+    isSpinnerDragging = false;
+    
+    double newWidth = ((Number)mainFrame.getBorderWidthSpinner().getValue()).doubleValue();
+
+    if (newWidth != borderWidthBeforeChange) {
+        // [!] 直接创建命令，不再获取多余的 color 和 style
+        Object target = selectedObject;
         
-        Color newColor = JColorChooser.showDialog(mainFrame, "选择边框颜色", currentColor);
-        
-        if (newColor != null && !newColor.equals(currentColor)) {
-            // 创建命令时，只改变颜色，其他属性保持不变
-            Command command = new ChangeBorderCommand(selectedObject, newColor, currentWidth, currentStyle);
+        // 先把模型状态恢复到操作前
+        if (target instanceof RectangleShape) ((RectangleShape) target).setBorderWidth(borderWidthBeforeChange);
+        else if (target instanceof EllipseShape) ((EllipseShape) target).setBorderWidth(borderWidthBeforeChange);
+
+        // 创建一个只改变宽度的匿名命令
+        Command command = new Command() {
+            private final double fromValue = borderWidthBeforeChange;
+            private final double toValue = newWidth;
+
+            @Override
+            public void execute() {
+                if (target instanceof RectangleShape) ((RectangleShape) target).setBorderWidth(toValue);
+                else if (target instanceof EllipseShape) ((EllipseShape) target).setBorderWidth(toValue);
+                updateUI();
+            }
+            @Override
+            public void undo() {
+                if (target instanceof RectangleShape) ((RectangleShape) target).setBorderWidth(fromValue);
+                else if (target instanceof EllipseShape) ((EllipseShape) target).setBorderWidth(fromValue);
+                updateUI();
+            }
+        };
+
+        undoManager.executeCommand(command);
+        markAsDirty();
+    }
+}
+        });
+        mainFrame.getBorderStyleBox().addActionListener(e -> {
+            if (isUpdatingUI || selectedObject == null) return;
+            if (!(selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape)) return;
+
+            int selectedIndex = mainFrame.getBorderStyleBox().getSelectedIndex();
+            
+            // 获取当前其他属性的值
+            Color currentColor = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderColor() : ((EllipseShape) selectedObject).getBorderColor();
+            double currentWidth = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderWidth() : ((EllipseShape) selectedObject).getBorderWidth();
+            
+            double newWidth = currentWidth;
+            int newStyle = selectedIndex;
+
+            // 处理“无边框”选项
+            if (selectedIndex == 3) {
+                newWidth = 0;
+                // 保持原有的线型，以便恢复
+                newStyle = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderStyle() : ((EllipseShape) selectedObject).getBorderStyle();
+            } else {
+                // 如果之前是“无边框”，切换回来时给一个默认宽度
+                if (currentWidth == 0) {
+                    newWidth = 1.0;
+                }
+            }
+
+            Command command = new ChangeBorderCommand(selectedObject, currentColor, newWidth, newStyle);
             undoManager.executeCommand(command);
 
             markAsDirty();
             updateUI();
-        }
-    });
-
-
-    // --- 边框粗细微调器监听器 (特殊处理Undo) ---
-    mainFrame.getBorderWidthSpinner().addChangeListener(e -> {
-        if (isUpdatingUI || selectedObject == null) return;
-        if (!(selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape)) return;
-
-        // ChangeListener 只是实时更新UI，不创建命令
-        double newWidth = ((Number)mainFrame.getBorderWidthSpinner().getValue()).doubleValue();
-        if (selectedObject instanceof RectangleShape) {
-            ((RectangleShape) selectedObject).setBorderWidth(newWidth);
-        } else {
-            ((EllipseShape) selectedObject).setBorderWidth(newWidth);
-        }
-        markAsDirty();
-        mainFrame.getCanvasPanel().repaint();
-        repaintThumbnails();
-        // 实时更新可能会影响线型下拉框的状态（比如宽度变为0）
-        updatePropertiesPanel();
-    });
-    // 为JSpinner添加MouseListener，在鼠标【松开】时才创建命令
-    mainFrame.getBorderWidthSpinner().addMouseListener(new MouseAdapter() {
-        @Override
-        public void mousePressed(MouseEvent e) {
-            // 鼠标按下时，记录下操作前的宽度
-            if (selectedObject instanceof RectangleShape) {
-                borderWidthBeforeChange = ((RectangleShape) selectedObject).getBorderWidth();
-            } else if (selectedObject instanceof EllipseShape) {
-                borderWidthBeforeChange = ((EllipseShape) selectedObject).getBorderWidth();
-            }
-        }
-        @Override
-        public void mouseReleased(MouseEvent e) {
-            // 鼠标松开时，比较新旧值，如果不同，则创建命令
-            double newWidth = ((Number)mainFrame.getBorderWidthSpinner().getValue()).doubleValue();
-            if (newWidth != borderWidthBeforeChange) {
-                // 获取其他属性的当前值
-                Color currentColor = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderColor() : ((EllipseShape) selectedObject).getBorderColor();
-                int currentStyle = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderStyle() : ((EllipseShape) selectedObject).getBorderStyle();
-                
-                // 创建一个能恢复到旧宽度的命令
-                Object target = selectedObject;
-                undoManager.executeCommand(new Command() {
-                    public void execute() {
-                        // execute时，我们已经是新宽度了，所以什么都不用做
-                        // 但为了重做功能，还是需要设置一下
-                        if (target instanceof RectangleShape) ((RectangleShape) target).setBorderWidth(newWidth);
-                        else if (target instanceof EllipseShape) ((EllipseShape) target).setBorderWidth(newWidth);
-                    }
-                    public void undo() {
-                        if (target instanceof RectangleShape) ((RectangleShape) target).setBorderWidth(borderWidthBeforeChange);
-                        else if (target instanceof EllipseShape) ((EllipseShape) target).setBorderWidth(borderWidthBeforeChange);
-                    }
-                });
-            }
-        }
-    });
-
-
-    // --- 边框线型选择框监听器 (使用ChangeBorderCommand) ---
-    mainFrame.getBorderStyleBox().addActionListener(e -> {
-        if (isUpdatingUI || selectedObject == null) return;
-        if (!(selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape)) return;
-
-        int selectedIndex = mainFrame.getBorderStyleBox().getSelectedIndex();
-        
-        // 获取当前其他属性的值
-        Color currentColor = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderColor() : ((EllipseShape) selectedObject).getBorderColor();
-        double currentWidth = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderWidth() : ((EllipseShape) selectedObject).getBorderWidth();
-        
-        double newWidth = currentWidth;
-        int newStyle = selectedIndex;
-
-        // 处理“无边框”选项
-        if (selectedIndex == 3) {
-            newWidth = 0;
-            // 保持原有的线型，以便恢复
-            newStyle = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderStyle() : ((EllipseShape) selectedObject).getBorderStyle();
-        } else {
-            // 如果之前是“无边框”，切换回来时给一个默认宽度
-            if (currentWidth == 0) {
-                newWidth = 1.0;
-            }
-        }
-
-        Command command = new ChangeBorderCommand(selectedObject, currentColor, newWidth, newStyle);
-        undoManager.executeCommand(command);
-
-        markAsDirty();
-        updateUI();
-    });
-        mainFrame.getPlayButton().addActionListener(e -> {
-            // 隐藏主窗口 (可选，但体验更好)
-            mainFrame.setVisible(false); 
-            
-            // 创建并启动播放器
-            PlayerFrame player = new PlayerFrame(presentation);
-            // 3. 添加一个窗口监听器，以便在播放器关闭时得到通知
-            player.addWindowListener(new java.awt.event.WindowAdapter() {
-                @Override
-                public void windowClosed(java.awt.event.WindowEvent windowEvent) {
-                    // 当 player.dispose() 被调用后，这个方法会被触发
-                    // 4. 重新显示主编辑窗口
-                    mainFrame.setVisible(true);
-                    // 5. 确保主窗口恢复焦点
-                    mainFrame.toFront();
-                    mainFrame.requestFocus();
-                }
-            });
-            player.start();
-
         });
+        mainFrame.getPlayFromStartButton().addActionListener(e -> {playPresentation(true);  });
+        mainFrame.getPlayButton().addActionListener(e -> { playPresentation(false);  });
         mainFrame.getUndoMenuItem().addActionListener(e -> {
             undoManager.undo();
             updateUI();
@@ -621,6 +610,16 @@ public class AppController {
             public void actionPerformed(ActionEvent e) {
                 undoManager.redo();
                 updateUI(); // 重做后需要更新整个UI
+            }
+        });
+
+        // --- 绑定 F5 (从头播放) ---
+        String playActionKey = "playAction";
+        KeyStroke f5KeyStroke = KeyStroke.getKeyStroke("F5");
+        inputMap.put(f5KeyStroke, playActionKey);
+        actionMap.put(playActionKey, new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                playPresentation(true); // 同样调用新方法，并传入 true
             }
         });
     }
@@ -809,6 +808,31 @@ public class AppController {
         System.out.println("视图已适应窗口大小并居中，当前缩放比例: " + String.format("%.2f", scale));
     }
 
+    /**
+     * 启动幻灯片放映。
+     * @param fromStart 如果为 true，则从第一页开始播放；否则，从当前页开始。
+     */
+    private void playPresentation(boolean fromStart) {
+        if (fromStart) {
+            presentation.setCurrentSlideIndex(0); // 如果是从头播放，先将索引设为0
+            updateUI(); // 更新UI以确保左侧高亮在第一页
+        }
+
+        mainFrame.setVisible(false);
+        PlayerFrame player = new PlayerFrame(presentation);
+        
+        player.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosed(java.awt.event.WindowEvent windowEvent) {
+                mainFrame.setVisible(true);
+                mainFrame.toFront();
+                mainFrame.requestFocus();
+            }
+        });
+        
+        player.start();
+    }
+    
     // [!] 新增: 一个总的UI更新方法
     public void updateUI() {
         updateThumbnailList();

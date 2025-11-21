@@ -28,6 +28,7 @@ public class MainFrame extends JFrame {
     private JButton deleteSlideButton;
     private JButton borderColorButton; 
     private JButton playButton;
+    private JButton playFromStartButton;
 
     private JComboBox<String> fontNameBox;
     private JSpinner fontSizeSpinner;
@@ -89,6 +90,7 @@ public class MainFrame extends JFrame {
     newSlideButton = new JButton("新建页面");
     deleteSlideButton = new JButton("删除页面");
     playButton = new JButton("播放");
+    playFromStartButton = new JButton("从头播放");
     
 
     toolBar.add(newSlideButton);
@@ -102,6 +104,7 @@ public class MainFrame extends JFrame {
     add(toolBar, BorderLayout.NORTH);
 
     toolBar.add(Box.createHorizontalGlue()); // 一个弹簧，会把播放按钮推到最右边
+    toolBar.add(playFromStartButton);
     toolBar.add(playButton); 
 
     // --- [!] 修正后的三栏布局逻辑 ---
@@ -275,4 +278,5 @@ public class MainFrame extends JFrame {
     public JButton getPlayButton() { return playButton; }
     public JMenuItem getUndoMenuItem() { return undoMenuItem; }
     public JMenuItem getRedoMenuItem() { return redoMenuItem; }
+    public JButton getPlayFromStartButton() { return this.playFromStartButton; }
 }

@@ -2,13 +2,24 @@ package com.myppt.controller;
 
 import java.util.Stack;
 import com.myppt.commands.Command;
+import com.myppt.view.MainFrame;
 
 /**
  * 管理所有命令的执行、撤销和重做。
  */
 public class UndoManager {
+    private MainFrame mainFrame;
     private Stack<Command> undoStack = new Stack<>();
     private Stack<Command> redoStack = new Stack<>();
+
+    public UndoManager(MainFrame mainFrame) { // [!] 修改构造函数
+        this.mainFrame = mainFrame;
+    }
+
+    public void updateMenuState() {
+        mainFrame.getUndoMenuItem().setEnabled(canUndo());
+        mainFrame.getRedoMenuItem().setEnabled(canRedo());
+    }
 
     /**
      * 执行一个新命令，并将其添加到撤销栈中。
@@ -19,6 +30,7 @@ public class UndoManager {
         undoStack.push(command);
         // 当执行一个新命令时，所有之前的“重做”历史都应被清空
         redoStack.clear();
+        updateMenuState(); 
     }
 
     /**
@@ -29,6 +41,7 @@ public class UndoManager {
             Command command = undoStack.pop();
             command.undo();
             redoStack.push(command);
+            updateMenuState(); 
         }
     }
 
@@ -40,6 +53,7 @@ public class UndoManager {
             Command command = redoStack.pop();
             command.execute();
             undoStack.push(command);
+            updateMenuState(); 
         }
     }
 
@@ -59,5 +73,6 @@ public class UndoManager {
     public void addCommand(Command command) {
         undoStack.push(command);
         redoStack.clear(); // 同样需要清空重做栈
+        updateMenuState(); 
     }
 }
