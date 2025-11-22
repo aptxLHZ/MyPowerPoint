@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>MyPPT 使用说明</title>
+    <style>
+        body { font-family: 'Microsoft YaHei', sans-serif; font-size: 14px; line-height: 1.6; color: #333; }
+        h1, h2, h3 { color: #2c3e50; margin-top: 20px; margin-bottom: 10px; }
+        h1 { font-size: 24px; color: #3498db; }
+        h2 { font-size: 20px; color: #2980b9; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        h3 { font-size: 16px; color: #1abc9c; }
+        ul { list-style-type: disc; margin-left: 20px; padding: 0; }
+        ul ul { list-style-type: circle; margin-left: 15px; }
+        li { margin-bottom: 5px; }
+        b { color: #e74c3c; } /* 突出显示关键功能 */
+        .highlight { color: #f39c12; font-weight: bold; } /* 额外的亮点 */
+    </style>
+</head>
+<body>
+    <h1>MyPPT 幻灯片制作与播放软件使用说明</h1>
+    <p>欢迎使用 MyPPT！这是一个功能强大、交互流畅的幻灯片制作工具，旨在为您提供卓越的幻灯片制作与演示体验。</p>
+    <p>本软件在标准PowerPoint功能基础上，进行了大量创新与优化，以下将为您详细介绍。</p>
+
+    <h2>--- [核心文件与页面操作] ---</h2>
+    <ul>
+        <li><b>新建幻灯片</b>: 通过菜单栏【文件】->【新建】启动一份空白幻灯片。<br>
+            <ul>
+            <li><span class="highlight">智能保存提示</span>: 执行“新建”或“打开”操作前，若文件已修改，系统会弹出专业对话框询问是否保存，有效防止数据丢失。在文件保存对话框中点击“取消”也能正确返回编辑界面。</li>
+            </ul>
+        </li>
+        <li><b>打开/保存幻灯片</b>:
+            <ul>
+            <li>【文件】->【打开...】: 加载 .myppt 格式的幻灯片文件。</li>
+            <li>【文件】->【保存】: 保存当前幻灯片到文件。</li>
+            <li>【文件】->【另存为...】: 将当前幻灯片保存为新文件，并自动将编辑焦点切换到新文件上。</li>
+            <li><span class="highlight">文件状态可视化</span>: 主窗口标题栏会动态显示当前文件名。文件有修改时，文件名后会自动添加一个“*”号，直观提示用户保存。</li>
+            <li><span class="highlight">自定义反序列化</span>: 智能处理图片等特殊对象在打开文件后的重新加载，保证数据的完整性和健壮性。</li>
+            </ul>
+        </li>
+        <li><b>页面管理 (左侧面板)</b>:
+            <ul>
+            <li>【新建页面】: 工具栏按钮，在当前幻灯片中添加新页面。</li>
+            <li>【删除页面】: 工具栏按钮，删除当前选中的页面，系统会确保至少保留一页幻灯片。</li>
+            <li><span class="highlight">动态缩略图列表</span>: 左侧面板显示所有页面的实时缩略图，支持垂直滚动。点击缩略图即可【切换页面】，主编辑区与缩略图【实时双向同步】显示内容。</li>
+            </ul>
+        </li>
+    </ul>
+    
+    <h2>--- [对象创建与核心交互] ---</h2>
+    <ul>
+        <li><b>添加对象 (工具栏)</b>:
+            <ul>
+            <li>【添加矩形/椭圆/文本框/插入图片/添加直线】: 点击相应按钮，然后在中间编辑区点击（或拖拽）创建。</li>
+            <li><span class="highlight">图片插入增强</span>: 使用标准文件选择器，并设置了文件过滤器，只显示常用图片格式。图片加载失败会有友好的异常处理和提示。</li>
+            </ul>
+        </li>
+        <li><b>选取对象</b>: 单击对象即可选中。点击空白处取消选中。
+            <ul>
+            <li><span class="highlight">页面外选取</span>: 即使对象被拖到页面工作区之外的灰色区域，也能被轻松选中并继续编辑。</li>
+            <li><span class="highlight">顶层优先选择</span>: 点击重叠对象时，系统会自动选择最顶层的对象。</li>
+            </ul>
+        </li>
+        <li><b>移动对象</b>: 选中对象后，按住鼠标拖动即可。</li>
+        <li><b>缩放对象</b>: 选中对象后，拖动对象周围的【蓝色控制点】即可。
+            <ul>
+            <li><span class="highlight">等比例缩放</span>: 拖动角点时，按住【Shift】键即可保持原始比例，此功能通用支持所有图形和图片。</li>
+            <li><span class="highlight">文本自动重排</span>: 缩放文本框宽度时，内部文字能够自动换行以适应新宽度，此功能完美支持中文文本。</li>
+            <li><span class="highlight">文本框智能尺寸</span>: 文本框能随字体增大而自动增大包围盒，确保文字始终在可点击区域内。</li>
+            <li><span class="highlight">直线自由伸缩</span>: 直线缩放时，两端点可自由拖拽，彻底改变线条方向。</li>
+            <li><span class="highlight">智能鼠标光标</span>: 鼠标悬停在控制点上时，光标会自动变为对应的缩放箭头，提供直观提示。</li>
+            </ul>
+        </li>
+        <li><b>删除对象</b>: 选中对象后，按【Delete】或【Backspace】键，或【右键】菜单选择“删除”。</li>
+    </ul>
+    
+    <h2>--- [高级编辑功能] ---</h2>
+    <ul>
+        <li><b>层次管理 (右键菜单)</b>: 选中对象后，右键点击对象：
+            <ul>
+            <li>【置于顶层/底层】、【上移一层/下移一层】: 精确调整对象图层顺序。</li>
+            <li><span class="highlight">完全支持撤销/重做</span>: 任何复杂的层次调整（包括连续操作）都能通过撤销/重做功能精确恢复。</li>
+            </ul>
+        </li>
+        <li><b>修改属性 (右侧面板)</b>:
+            <ul>
+            <li><span class="highlight">上下文感知UI</span>: 右侧属性面板会根据选中对象的类型，动态显示/隐藏/启用/禁用相应的属性控件，使界面保持简洁和相关性。</li>
+            <li><b>颜色</b>: 更改对象的填充色/线条色。</li>
+            <li><b>文本</b>: 【修改文本】按钮更改文本内容，支持多行输入。</li>
+            <li><b>文字样式</b>: 【字体】、【字号】、【粗体】、【斜体】调整文本样式，提供多种中英文字体选择。</li>
+            <li><b>边框样式</b>: 【边框颜色】、【粗细】、【线型(实线/虚线/点线)】调整图形边框样式，支持“无边框”选项。此功能同样支持直线。</li>
+            <li><b>图片透明度</b>: 【透明度】滑动条调整图片透明度，支持实时预览和撤销。</li>
+            <li><span class="highlight">所有属性修改均支持撤销/重做</span>。</li>
+            </ul>
+        </li>
+        <li><b>格式刷</b>: 选中源对象（文本框、矩形、椭圆、直线、图片），点击工具栏【格式刷】按钮（鼠标变十字光标），再点击目标对象。<br>
+            <ul>
+            <li><span class="highlight">样式类型兼容性检查</span>: 确保只有同类型对象才能复制样式（如文本刷文本，图形刷图形）。</li>
+            <li><span class="highlight">支持所有样式属性</span>: 包括颜色、字体、大小、粗细、线型、透明度等。</li>
+            <li>按【Esc】键取消格式刷模式。</li>
+            <li><span class="highlight">支持撤销/重做</span>。</li>
+            </ul>
+        </li>
+        <li><span class="highlight"><b>自动恢复</b></span>: 系统会每隔一段时间自动保存当前工作状态到临时文件。<br>
+            <ul>
+            <li>程序启动时，若检测到上次意外关闭，会弹窗询问是否恢复未保存的工作。</li>
+            <li>程序正常关闭时，自动清理临时文件，不留下垃圾。</li>
+            </ul>
+        </li>
+    </ul>
+    
+    <h2>--- [视图与演示] ---</h2>
+    <ul>
+        <li><b>视图缩放与滚动</b>:
+            <ul>
+            <li>按【Ctrl/Command】+【鼠标滚轮】进行视图缩放。</li>
+            <li>按【Shift】+【鼠标滚轮】水平滚动，仅【鼠标滚轮】垂直滚动（支持触摸板）。</li>
+            <li>【重置视图】按钮恢复默认视图，并居中显示当前页面。</li>
+            </ul>
+        </li>
+        <li><b>幻灯片播放</b>:
+            <ul>
+            <li>【播放】/【从头播放(F5)】按钮启动全屏播放。</li>
+            <li>【鼠标单击】或【右方向键】前进到下一页，【左方向键】返回上一页。</li>
+            <li>按【Esc】键退出播放。</li>
+            <li><span class="highlight">专业播放体验</span>: 播放时隐藏主窗口，退出后恢复；播放结束有提示信息；仅播放页面内内容，自动裁剪边界外对象。</li>
+            </ul>
+        </li>
+        <li><span class="highlight"><b>导出为PDF</b></span>: 通过【文件】菜单导出所有幻灯片页面为高质量PDF文档，支持所有对象和样式。</li>
+    </ul>
+    
+    <h2>--- [常用快捷键] ---</h2>
+    <ul>
+        <li><b>撤销</b>: Ctrl/Command + Z</li>
+        <li><b>重做</b>: Ctrl/Command + Y (macOS: Cmd + Shift + Z)</li>
+        <li><b>复制</b>: Ctrl/Command + C (内部复制)</li>
+        <li><b>剪切</b>: Ctrl/Command + X (内部剪切)</li>
+        <li><b>粘贴</b>: Ctrl/Command + V (内部粘贴，智能错位)</li>
+        <li><b>删除对象</b>: Delete / Backspace</li>
+        <li><b>从头播放</b>: F5</li>
+    </ul>
+    
+    <p><br>感谢您的使用！</p>
+    <p><br>MyPPT开发者：LHZ</p>
+</body>
+</html>

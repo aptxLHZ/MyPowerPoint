@@ -134,4 +134,8 @@ public class RectangleShape extends AbstractSlideObject {
             this.setBorderStyle(ss.getBorderStyle());
         }
     }
+    
+    public int getHeight(){ return this.height; }
+    public int getWidth(){ return this.width; }
+
 }

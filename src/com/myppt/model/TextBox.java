@@ -203,9 +203,10 @@ public class TextBox extends AbstractSlideObject {
 
     public void setFont(Font font) {
         this.font = font;
-        // 字体改变了，必须重新计算自然边界，因为文字宽度变了
-        // 如果我们希望保留用户已经调整过的宽度，就调用 updateHeightForWidth
-        // 这里我们选择保留宽度，只调整高度
+        // [!] 核心修复: 字体改变后，立即重新计算自然边界
+        calculateNaturalBounds();
+        // 并且，如果之前有缩放，要确保新的高度也符合缩放的宽度
+        // 所以，这里还需要再次调用 updateHeightForWidth，确保高度匹配当前宽度
         updateHeightForWidth(this.width);
     }
 

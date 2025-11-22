@@ -45,6 +45,7 @@ public class MainFrame extends JFrame {
     private JMenuItem redoMenuItem; 
     private JMenuItem helpMenuItem;
     private JMenuItem githubMenuItem;
+    private JMenuItem exportPdfMenuItem;
 
     private JComboBox<String> borderStyleBox;
     private JSlider opacitySlider;
@@ -65,16 +66,20 @@ public class MainFrame extends JFrame {
 
     setLayout(new BorderLayout());
 
+    //--文件菜单--
     JMenu fileMenu = new JMenu("文件");
     newMenuItem = new JMenuItem("新建");
     openMenuItem = new JMenuItem("打开...");
     saveMenuItem = new JMenuItem("保存");
     saveAsMenuItem = new JMenuItem("另存为...");
+    exportPdfMenuItem = new JMenuItem("导出为PDF...");
 
     fileMenu.add(newMenuItem);
     fileMenu.add(openMenuItem);
     fileMenu.add(saveMenuItem);
     fileMenu.add(saveAsMenuItem); 
+    fileMenu.addSeparator(); // 添加分隔线
+    fileMenu.add(exportPdfMenuItem);
 
     menuBar.add(fileMenu);
 
@@ -329,4 +334,5 @@ public class MainFrame extends JFrame {
     public JPanel getOpacityGroupPanel() { return opacityGroupPanel; }
     public JMenuItem getHelpMenuItem() { return helpMenuItem; } 
     public JMenuItem getGithubMenuItem() { return githubMenuItem; } 
+    public JMenuItem getExportPdfMenuItem() { return exportPdfMenuItem; }
 }

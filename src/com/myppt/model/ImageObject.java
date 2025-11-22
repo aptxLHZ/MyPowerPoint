@@ -20,7 +20,7 @@ public class ImageObject extends AbstractSlideObject {
     // transient 关键字告诉Java序列化机制：不要尝试保存这个字段。
     // 因为Image对象本身通常不是Serializable的，而且我们应该保存图片路径而不是图片数据。
     private transient Image image;
-    private String imagePath; // 我们保存图片的路径，以便可以重新加载
+    public String imagePath; // 我们保存图片的路径，以便可以重新加载
     private int width;
     private int height;
     private final double aspectRatio;
@@ -140,5 +140,6 @@ public class ImageObject extends AbstractSlideObject {
     }
 
     public double getAspectRation(){ return this.aspectRatio; }
+    public String getImagePath() { return imagePath; }
 
 }

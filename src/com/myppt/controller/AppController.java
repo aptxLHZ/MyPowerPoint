@@ -61,6 +61,7 @@ import java.util.TimerTask;
 import com.myppt.view.PlayerFrame; 
 import com.myppt.controller.strategies.*; // 导入所有策略
 import com.myppt.model.*;
+import com.myppt.utils.PdfExporter;
 import com.myppt.view.CanvasPanel;
 import com.myppt.view.MainFrame;
 import com.myppt.view.SlideThumbnail;
@@ -74,6 +75,12 @@ import com.myppt.commands.ChangeFontCommand;
 import com.myppt.commands.ChangeBorderCommand;
 import com.myppt.commands.ChangeOpacityCommand;
 
+import org.apache.pdfbox.pdmodel.PDDocument; // [!] 新增
+import org.apache.pdfbox.pdmodel.PDPage;     // [!] 新增
+import org.apache.pdfbox.pdmodel.common.PDRectangle; // [!] 新增
+import org.apache.pdfbox.pdmodel.PDPageContentStream; // [!] 新增 (用于绘制，但暂时不会完整使用)
+import java.io.BufferedReader; // [!] 新增
+import java.io.InputStreamReader; // [!] 新增
 
 /**
  * 应用程序的主控制器，负责协调各个部分。
@@ -754,6 +761,7 @@ public class AppController {
                 ex.printStackTrace();
             }
         });
+        mainFrame.getExportPdfMenuItem().addActionListener(e -> exportToPdf());
     }
 
     private void attachMouseWheelListener() {
@@ -1282,136 +1290,35 @@ public class AppController {
      */
     // 用这个方法完整替换旧的 showHelpDialog()
     private void showHelpDialog() {
-        String helpHtmlText = 
-            "<html><body>" +
-            "<h2 style='color:#336699;'>*** MyPPT 幻灯片制作与播放软件使用说明 ***</h2>" +
-            "<p>欢迎使用 MyPPT！这是一个功能强大、交互流畅的幻灯片制作工具。</p>" +
-            "<p>本软件在标准PowerPoint功能基础上，进行了多项创新与优化，旨在提供更佳的用户体验。</p>" +
-            
-            "<h3 style='color:#008000;'>--- [基本文件与页面操作] ---</h3>" +
-            "<ul>" +
-            "<li><b>新建幻灯片</b>: 通过菜单栏【文件】->【新建】启动一份空白幻灯片。<br>" +
-            "    <ul>" +
-            "    <li><b style='color:#FF6600;'>智能保存提示</b>: 若当前文件未保存，执行“新建”或“打开”前会弹出专业对话框询问是否保存，防止数据丢失。在文件保存对话框中点击“取消”也能正确返回编辑界面。</li>" +
-            "    </ul>" +
-            "</li>" +
-            "<li><b>打开/保存幻灯片</b>:" +
-            "    <ul>" +
-            "    <li>【文件】->【打开...】: 加载 .myppt 格式的幻灯片文件。</li>" +
-            "    <li>【文件】->【保存】: 保存当前幻灯片到文件。</li>" +
-            "    <li>【文件】->【另存为...】: 将当前幻灯片保存为新文件，并自动将编辑焦点切换到新文件上。</li>" +
-            "    <li><b style='color:#FF6600;'>文件状态可视化</b>: 主窗口标题栏会动态显示当前文件名。文件有修改时，文件名后会自动添加一个“*”号。</li>" +
-            "    <li><b style='color:#FF6600;'>自定义反序列化</b>: 图像等特殊对象在打开时能正确加载，避免了传统序列化可能导致的问题。</li>" +
-            "    </ul>" +
-            "</li>" +
-            "<li><b>页面管理 (左侧面板)</b>:<br>" +
-            "    <ul>" +
-            "    <li>【新建页面】: 工具栏按钮，在当前幻灯片中添加新页面。</li>" +
-            "    <li>【删除页面】: 工具栏按钮，删除当前选中的页面，至少保留一页。</li>" +
-            "    <li><b style='color:#FF6600;'>动态缩略图列表</b>: 左侧面板显示所有页面的实时缩略图，支持垂直滚动。<br>" +
-            "        - 点击缩略图即可【切换页面】，主编辑区与缩略图【实时双向同步】。</li>" +
-            "    </ul>" +
-            "</li>" +
-            "</ul>" +
-            
-            "<h3 style='color:#008000;'>--- [对象创建与核心交互] ---</h3>" +
-            "<ul>" +
-            "<li><b>添加对象 (工具栏)</b>:<br>" +
-            "    <ul>" +
-            "    <li>【添加矩形/椭圆/文本框/插入图片/添加直线】: 点击按钮，然后在中间编辑区点击（或拖拽）创建。</li>" +
-            "    <li><b style='color:#FF6600;'>图片插入</b>: 使用文件选择器，并设置了文件过滤器，只显示常用图片格式。加载失败会提示。</li>" +
-            "    </ul>" +
-            "</li>" +
-            "<li><b>选取对象</b>: 单击对象即可选中。点击空白处取消选中。<br>" +
-            "    <ul>" +
-            "    <li><b style='color:#FF6600;'>页面外选取</b>: 即使对象被拖到页面外，也能被选中。</li>" +
-            "    <li><b style='color:#FF6600;'>顶层优先</b>: 点击重叠对象时，自动选择最顶层对象。</li>" +
-            "    </ul>" +
-            "</li>" +
-            "<li><b>移动对象</b>: 选中对象后，按住鼠标拖动即可。</li>" +
-            "<li><b>缩放对象</b>: 选中对象后，拖动对象周围的【蓝色控制点】即可。<br>" +
-            "    <ul>" +
-            "    <li><b style='color:#FF6600;'>等比例缩放</b>: 拖动角点时，按住【Shift】键即可保持原始比例，支持所有图形和图片。</li>" +
-            "    <li><b style='color:#FF6600;'>文本自动重排</b>: 缩放文本框宽度时，文字能自动换行以适应新宽度，支持中文。</li>" +
-            "    <li><b style='color:#FF6600;'>直线自由伸缩</b>: 直线缩放时，两端点可自由拖拽，彻底改变方向。</li>" +
-            "    <li><b style='color:#FF6600;'>智能鼠标光标</b>: 鼠标悬停在控制点上时，光标会自动变为对应的缩放箭头。</li>" +
-            "    </ul>" +
-            "</li>" +
-            "<li><b>删除对象</b>: 选中对象后，按【Delete】或【Backspace】键，或【右键】菜单选择“删除”。</li>" +
-            "</ul>" +
-            
-            "<h3 style='color:#008000;'>--- [高级编辑功能] ---</h3>" +
-            "<ul>" +
-            "<li><b>层次管理 (右键菜单)</b>: 选中对象后，右键点击对象：<br>" +
-            "    <ul>" +
-            "    <li>【置于顶层/底层】、【上移一层/下移一层】: 精确调整对象图层顺序。</li>" +
-            "    <li><b style='color:#FF6600;'>完全支持撤销/重做</b>: 任何复杂的层次调整都能精确恢复。</li>" +
-            "    </ul>" +
-            "</li>" +
-            "<li><b>修改属性 (右侧面板)</b>:<br>" +
-            "    <ul>" +
-            "    <li><b style='color:#FF6600;'>上下文感知UI</b>: 右侧属性面板会根据选中对象的类型，动态显示/隐藏/启用/禁用相应的属性控件。</li>" +
-            "    <li><b>颜色</b>: 更改对象的填充色/线条色。</li>" +
-            "    <li><b>文本</b>: 【修改文本】按钮更改文本内容，支持多行输入。</li>" +
-            "    <li><b>文字样式</b>: 【字体】、【字号】、【粗体】、【斜体】调整文本样式。<br>" +
-            "        - 提供多种中英文字体选择。</li>" +
-            "    <li><b>边框样式</b>: 【边框颜色】、【粗细】、【线型(实线/虚线/点线)】调整图形边框样式，支持“无边框”选项。</li>" +
-            "    <li><b>图片透明度</b>: 【透明度】滑动条调整图片透明度，支持实时预览和撤销。</li>" +
-            "    <li><b style='color:#FF6600;'>所有属性修改均支持撤销/重做</b>。</li>" +
-            "    </ul>" +
-            "</li>" +
-            "<li><b>格式刷</b>: 选中源对象（文本框、矩形、椭圆、直线、图片），点击工具栏【格式刷】按钮，鼠标变刷子，再点击目标对象。<br>" +
-            "    <ul>" +
-            "    <li><b style='color:#FF6600;'>样式类型兼容性检查</b>: 确保只有同类型对象才能复制样式（如文本刷文本，图形刷图形）。</li>" +
-            "    <li><b style='color:#FF6600;'>支持所有样式属性</b>: 包括颜色、字体、大小、粗细、线型、透明度等。</li>" +
-            "    <li>按【Esc】键取消格式刷模式。</li>" +
-            "    <li><b style='color:#FF6600;'>支持撤销/重做</b>。</li>" +
-            "    </ul>" +
-            "</li>" +
-            "</ul>" +
-            
-            "<h3 style='color:#008000;'>--- [视图与演示] ---</h3>" +
-            "<ul>" +
-            "<li><b>视图缩放与滚动</b>:<br>" +
-            "    <ul>" +
-            "    <li>按【Ctrl/Command】+【鼠标滚轮】进行视图缩放。</li>" +
-            "    <li>按【Shift】+【鼠标滚轮】水平滚动，仅【鼠标滚轮】垂直滚动（支持触摸板）。</li>" +
-            "    <li>【重置视图】按钮恢复默认视图，并居中显示当前页面。</li>" +
-            "    </ul>" +
-            "</li>" +
-            "<li><b>幻灯片播放</b>:<br>" +
-            "    <ul>" +
-            "    <li>【播放】/【从头播放(F5)】按钮启动全屏播放。</li>" +
-            "    <li>【鼠标单击】或【右方向键】前进到下一页，【左方向键】返回上一页。</li>" +
-            "    <li>按【Esc】键退出播放。</li>" +
-            "    <li><b style='color:#FF6600;'>专业播放体验</b>: 播放时隐藏主窗口，退出后恢复；播放结束有提示信息；仅播放页面内内容，自动裁剪边界外对象。</li>" +
-            "    </ul>" +
-            "</li>" +
-            "</ul>" +
-            
-            "<h3 style='color:#008000;'>--- [常用快捷键] ---</h3>" +
-            "<ul>" +
-            "<li><b>撤销</b>: Ctrl/Command + Z</li>" +
-            "<li><b>重做</b>: Ctrl/Command + Y (macOS: Cmd + Shift + Z)</li>" +
-            "<li><b>删除对象</b>: Delete / Backspace</li>" +
-            "<li><b>从头播放</b>: F5</li>" +
-            "</ul>" +
-            
-            "<p><br>感谢您的使用！</p>" +
-            "<p><br>MyPPT开发者：LHZ。</p>" +
-            "</body></html>";
+        StringBuilder helpHtmlTextBuilder = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(
+                    getClass().getResourceAsStream("/main/resources/help.html"), // [!] 核心: 从资源流读取文件
+                    "UTF-8"))) { // [!] 指定编码
+            String line;
+            while ((line = reader.readLine()) != null) {
+                helpHtmlTextBuilder.append(line).append("\n");
+            }
+        } catch (IOException e) {
+            System.err.println("加载使用说明文件失败: " + e.getMessage());
+            helpHtmlTextBuilder.append("<html><body><p><b>错误: 无法加载使用说明文件。</b></p></body></html>");
+        }
+        String helpHtmlText = helpHtmlTextBuilder.toString();
 
         JTextPane textPane = new JTextPane();
         textPane.setContentType("text/html");
         textPane.setText(helpHtmlText);
         textPane.setEditable(false);
-        textPane.setFont(new Font("Dialog", Font.PLAIN, 14)); // 设置一个清晰的默认字体和大小
         
+        // [!] 设置一个合适的默认字体和大小，因为 HTML 默认字体可能很小
+        // 注意：这里的字体设置只对 JTextPane 自己的默认样式有效，不会覆盖 HTML 中的 style 属性
+        textPane.setFont(new Font("Dialog", Font.PLAIN, 10)); 
+
         JScrollPane scrollPane = new JScrollPane(textPane);
-        scrollPane.setPreferredSize(new Dimension(650, 500)); // 适当增大对话框的初始尺寸
+        scrollPane.setPreferredSize(new Dimension(650, 500));
         
         SwingUtilities.invokeLater(() -> {
-            scrollPane.getVerticalScrollBar().setValue(0); // 将垂直滚动条的值设为0，即最顶部
+            scrollPane.getVerticalScrollBar().setValue(0); // 确保滚动条在顶部
         });
         
         JOptionPane.showMessageDialog(
@@ -1422,4 +1329,57 @@ public class AppController {
         );
     }
 
+
+    /**
+     * 将当前幻灯片导出为 PDF 文件。
+     */
+    private void exportToPdf() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("导出为PDF");
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileFilter() {
+            public boolean accept(File f) {
+                return f.isDirectory() || f.getName().toLowerCase().endsWith(".pdf");
+            }
+            public String getDescription() {
+                return "PDF 文件 (*.pdf)";
+            }
+        });
+
+        int userSelection = fileChooser.showSaveDialog(mainFrame);
+        if (userSelection == JFileChooser.APPROVE_OPTION) {
+            File fileToSave = fileChooser.getSelectedFile();
+            if (!fileToSave.getName().toLowerCase().endsWith(".pdf")) {
+                fileToSave = new File(fileToSave.getAbsolutePath() + ".pdf");
+            }
+            
+            PDDocument document = new PDDocument(); // PDFBox 的文档对象
+            try {
+                // [!] 核心: 遍历所有页面并绘制
+                for (Slide slide : presentation.getSlides()) {
+                    // [!] 核心修复: 修改 PDF 页面创建方式以适配 PDFBox v3.0.x
+                    // PDRectangle.A4 默认是纵向，为了横向，我们需要交换宽高
+                    PDRectangle pageSize = PDRectangle.A4;
+                    // 交换宽高以实现横向
+                    PDPage page = new PDPage(new PDRectangle(pageSize.getHeight(), pageSize.getWidth())); 
+                    document.addPage(page);
+
+                    PdfExporter exporter = new PdfExporter(document, page);
+                    exporter.drawSlideToPdf(slide);
+                    exporter.close(); // 关闭内容流
+                }
+
+                document.save(fileToSave);
+                JOptionPane.showMessageDialog(mainFrame, "PDF导出成功！", "导出完成", JOptionPane.INFORMATION_MESSAGE);
+            } catch (IOException e) {
+                e.printStackTrace();
+                JOptionPane.showMessageDialog(mainFrame, "PDF导出失败: " + e.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+            } finally {
+                try {
+                    if (document != null) document.close();
+                } catch (IOException e) {
+                    System.err.println("关闭PDF文档失败: " + e.getMessage());
+                }
+            }
+        }
+    }
 }
