@@ -226,7 +226,7 @@ public class MainFrame extends JFrame {
     propertiesPanel.add(borderStylePanel);
 
     propertiesPanel.add(Box.createRigidArea(new Dimension(0, 10))); // 添加一点垂直间距
-    JLabel opacityLabel = new JLabel("透明度:");
+    JLabel opacityLabel = new JLabel("图片透明度:");
     opacityLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
     propertiesPanel.add(opacityLabel);
 

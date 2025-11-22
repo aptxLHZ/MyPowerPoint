@@ -22,6 +22,7 @@ import java.util.List;
 
 import javax.swing.JColorChooser;
 import javax.swing.JFileChooser;
+import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JRootPane;
 import javax.swing.JScrollBar;
@@ -163,11 +164,11 @@ public class AppController {
      * 如果是新文件（从未保存过），则调用“另存为”。
      * 否则，直接在当前文件上覆盖保存。
      */
-    private void saveToFile() {
+    private boolean saveToFile() { // [!] 修改返回类型
         if (currentFile == null) {
-            saveAsToFile();
+            return saveAsToFile(); // 如果是新文件，行为同“另存为”，并返回其结果
         } else {
-            doSave(currentFile);
+            return doSave(currentFile); // 直接覆盖保存，并返回其结果
         }
     }
 
@@ -176,11 +177,18 @@ public class AppController {
      * 总是会弹出文件选择对话框。
      * 保存成功后，程序将开始编辑这个新文件。
      */
-    private void saveAsToFile() {
+    private boolean saveAsToFile() { // [!] 修改返回类型
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setDialogTitle("另存为...");
-        // ... (FileFilter 代码不变)
-        
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileFilter() {
+            public boolean accept(File f) {
+                return f.isDirectory() || f.getName().toLowerCase().endsWith(".myppt");
+            }
+            public String getDescription() {
+                return "MyPPT 幻灯片 (*.myppt)";
+            }
+        });
+
         int userSelection = fileChooser.showSaveDialog(mainFrame);
 
         if (userSelection == JFileChooser.APPROVE_OPTION) {
@@ -189,12 +197,17 @@ public class AppController {
                 fileToSave = new File(fileToSave.getAbsolutePath() + ".myppt");
             }
             
-            // 调用保存逻辑
+            // 调用保存逻辑，并根据结果更新状态
             if (doSave(fileToSave)) { // 检查 doSave 是否成功
-                // 如果保存成功，则更新当前文件引用
                 this.currentFile = fileToSave;
-                updateTitle(); // [!] 更新窗口标题
+                updateTitle();
+                return true; // 保存成功，返回true
+            } else {
+                return false; // doSave 失败，返回false
             }
+        } else {
+            // [!] 核心修复: 用户在 JFileChooser 中点击了“取消”
+            return false; // 保存操作未完成，返回false
         }
     }
 
@@ -320,6 +333,20 @@ public class AppController {
         attachButtonListeners();
         attachMouseWheelListener();
         attachKeyBindings();
+        // [!] 核心修复: 为主窗口添加 WindowListener
+        mainFrame.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                // 在窗口关闭前，询问用户是否保存
+                if (!promptToSave()) {
+                    // 如果用户选择“取消”，则阻止窗口关闭
+                    mainFrame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+                } else {
+                    // 如果用户选择“是”或“否”，允许窗口正常关闭
+                    mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+                }
+            }
+        });
     }
 
     private void attachCanvasListeners() {
@@ -1034,16 +1061,16 @@ public class AppController {
         
         switch (result) {
             case JOptionPane.YES_OPTION:
-                saveToFile();
-                return true; // 保存后继续
+                return saveToFile(); // [!] 核心修复: 调用 saveToFile() 并返回它的结果
             case JOptionPane.NO_OPTION:
                 return true; // 不保存，直接继续
             case JOptionPane.CANCEL_OPTION:
             case JOptionPane.CLOSED_OPTION:
                 return false; // 用户取消，中断后续操作
         }
-        return false;
+        return false; // 默认返回，理论上不会到达
     }
+
 
     /**
      * 根据当前文件状态，更新主窗口的标题栏。
