@@ -45,6 +45,11 @@ public class MainFrame extends JFrame {
     private JMenuItem redoMenuItem; 
 
     private JComboBox<String> borderStyleBox;
+    private JSlider opacitySlider;
+
+    private JPanel textStyleGroupPanel; 
+    private JPanel borderStyleGroupPanel; 
+    private JPanel opacityGroupPanel;
 
    public MainFrame() {
     setTitle("My PowerPoint");
@@ -125,6 +130,15 @@ public class MainFrame extends JFrame {
     propertiesPanel.setLayout(new BoxLayout(propertiesPanel, BoxLayout.Y_AXIS));
     propertiesPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
+    // [!] 核心修复: 给属性面板本身设置一个最小尺寸，保证它永远可见
+    propertiesPanel.setMinimumSize(new Dimension(250, 0)); // 保证最小250像素宽
+    propertiesPanel.setPreferredSize(new Dimension(250, 600)); // 建议一个初始尺寸
+    
+    textStyleGroupPanel = new JPanel();
+    borderStyleGroupPanel = new JPanel();
+    opacityGroupPanel = new JPanel();
+    
+    
     // --- 按钮组 ---
     changeColorButton = new JButton("更改颜色");
     editTextButton = new JButton("修改文本");
@@ -211,6 +225,20 @@ public class MainFrame extends JFrame {
     borderStylePanel.add(borderStyleBox);
     propertiesPanel.add(borderStylePanel);
 
+    propertiesPanel.add(Box.createRigidArea(new Dimension(0, 10))); // 添加一点垂直间距
+    JLabel opacityLabel = new JLabel("透明度:");
+    opacityLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+    propertiesPanel.add(opacityLabel);
+
+    opacitySlider = new JSlider(0, 100, 100); // 0% 到 100%，默认100%
+    opacitySlider.setMajorTickSpacing(25); // 设置主刻度间隔
+    opacitySlider.setMinorTickSpacing(5);  // 设置次刻度间隔
+    opacitySlider.setPaintTicks(true);     // 绘制刻度
+    opacitySlider.setPaintLabels(true);    // 绘制刻度值
+    opacitySlider.setAlignmentX(Component.LEFT_ALIGNMENT);
+    opacitySlider.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50)); // 限制高度
+    propertiesPanel.add(opacitySlider);
+
     // 默认禁用所有样式控件
     changeColorButton.setEnabled(false);
     editTextButton.setEnabled(false);
@@ -220,6 +248,7 @@ public class MainFrame extends JFrame {
     italicCheckBox.setEnabled(false);
     borderColorButton.setEnabled(false);
     borderWidthSpinner.setEnabled(false);
+    opacitySlider.setEnabled(false); 
 
     // [!] 添加一个“弹簧”，将所有组件推到顶部
     propertiesPanel.add(Box.createVerticalGlue());
@@ -283,5 +312,16 @@ public class MainFrame extends JFrame {
     public JMenuItem getRedoMenuItem() { return redoMenuItem; }
     public JButton getPlayFromStartButton() { return this.playFromStartButton; }
     public JButton getFormatPainterButton() { return formatPainterButton; }
-        
+    public JSlider getOpacitySlider() { return opacitySlider; }    
+    public JPanel getTextStyleGroupPanel() {
+        return textStyleGroupPanel;
+    }
+
+    public JPanel getBorderStyleGroupPanel() {
+        return borderStyleGroupPanel;
+    }
+
+    public JPanel getOpacityGroupPanel() {
+        return opacityGroupPanel;
+    }
 }

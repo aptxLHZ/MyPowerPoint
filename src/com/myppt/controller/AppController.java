@@ -26,6 +26,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JRootPane;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
+import javax.swing.JSlider;
 import javax.swing.JTextArea;
 import javax.swing.JViewport;
 import javax.swing.SwingUtilities;
@@ -55,6 +56,7 @@ import com.myppt.commands.ChangeColorCommand;
 import com.myppt.commands.ChangeTextCommand;
 import com.myppt.commands.ChangeFontCommand;
 import com.myppt.commands.ChangeBorderCommand;
+import com.myppt.commands.ChangeOpacityCommand;
 
 
 /**
@@ -75,6 +77,8 @@ public class AppController {
     private double borderWidthBeforeChange;
     private boolean isSpinnerDragging = false;
     private Style copiedStyle = null;
+    private float opacityBeforeChange; 
+    private JSlider opacitySlider; 
 
     public AppController(Presentation presentation, MainFrame mainFrame) {
         this.presentation = presentation;
@@ -85,6 +89,7 @@ public class AppController {
         this.currentStrategy = new SelectStrategy(this);
         
         this.undoManager = new UndoManager();
+        this.opacitySlider = mainFrame.getOpacitySlider();
         this.attachListeners();
         updateUI();
 
@@ -549,6 +554,43 @@ public class AppController {
                 mainFrame.getCanvasPanel().setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
             }
         });
+        mainFrame.getOpacitySlider().addChangeListener(e -> {
+            if (isUpdatingUI || selectedObject == null) return;
+            if (!(selectedObject instanceof ImageObject)) return;
+
+            // ChangeListener 负责实时预览
+            ImageObject img = (ImageObject) selectedObject;
+            float newOpacity = (float)mainFrame.getOpacitySlider().getValue() / 100.0f; // Slider值是0-100，转为0.0-1.0
+            img.setOpacity(newOpacity);
+            markAsDirty();
+            mainFrame.getCanvasPanel().repaint();
+            repaintThumbnails();
+        });
+        mainFrame.getOpacitySlider().addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (isUpdatingUI || selectedObject == null) return;
+                isSpinnerDragging = true; // 复用isSpinnerDragging标志，因为它也是拖拽调整
+                if (selectedObject instanceof ImageObject) {
+                    opacityBeforeChange = ((ImageObject) selectedObject).getOpacity();
+                }
+            }
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (!isSpinnerDragging) return;
+                isSpinnerDragging = false;
+                if (!(selectedObject instanceof ImageObject)) return;
+
+                float newOpacity = (float)mainFrame.getOpacitySlider().getValue() / 100.0f;
+                if (newOpacity != opacityBeforeChange) {
+                    ImageObject target = (ImageObject) selectedObject;
+                    target.setOpacity(opacityBeforeChange); // 恢复旧状态
+                    Command command = new ChangeOpacityCommand(target, newOpacity);
+                    undoManager.executeCommand(command);
+                    markAsDirty();
+                }
+            }
+        });
     }
 
     private void attachMouseWheelListener() {
@@ -666,33 +708,36 @@ public class AppController {
         isUpdatingUI = true;
         try {
             boolean isTextSelected = selectedObject instanceof TextBox;
-            // [!] 核心修复: hasBorder 现在也包含 LineShape
             boolean hasBorder = selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape || selectedObject instanceof LineShape;
+            boolean isImageSelected = selectedObject instanceof ImageObject;
 
-            // --- 更新所有控件的【可见性】和【可用性】 ---
-            mainFrame.getChangeColorButton().setEnabled(selectedObject != null); // 任何对象都能改颜色
+            // --- 更新所有属性组的【可见性】---
+            // [!] 核心修复: 控制包裹面板的可见性，而不是单个控件
+            mainFrame.getTextStyleGroupPanel().setVisible(isTextSelected);
+            mainFrame.getBorderStyleGroupPanel().setVisible(hasBorder);
+            mainFrame.getOpacityGroupPanel().setVisible(isImageSelected);
+
+            // --- 更新所有控件的【可用性】---
+            // [!] 对所有控件设置启用/禁用，而不是依赖可见性
+            mainFrame.getChangeColorButton().setEnabled(selectedObject != null); 
             mainFrame.getEditTextButton().setEnabled(isTextSelected);
             mainFrame.getFontNameBox().setEnabled(isTextSelected);
             mainFrame.getFontSizeSpinner().setEnabled(isTextSelected);
             mainFrame.getBoldCheckBox().setEnabled(isTextSelected);
             mainFrame.getItalicCheckBox().setEnabled(isTextSelected);
-            
-            // [!] 核心修复: 同时设置 setVisible 和 setEnabled
-            mainFrame.getBorderColorButton().setVisible(hasBorder);
             mainFrame.getBorderColorButton().setEnabled(hasBorder);
-            mainFrame.getBorderWidthSpinner().getParent().setVisible(hasBorder);
             mainFrame.getBorderWidthSpinner().setEnabled(hasBorder);
-            mainFrame.getBorderStyleBox().getParent().setVisible(hasBorder);
             mainFrame.getBorderStyleBox().setEnabled(hasBorder);
-
+            mainFrame.getOpacitySlider().setEnabled(isImageSelected);
+            
             // --- 用模型数据【设置】所有控件的值 ---
             if (selectedObject != null) {
                 // 设置颜色按钮的文字
                 if (selectedObject instanceof LineShape) mainFrame.getChangeColorButton().setText("更改线条颜色");
-                else if (selectedObject instanceof TextBox) mainFrame.getChangeColorButton().setText("更改文字颜色");
+                else if (isTextSelected) mainFrame.getChangeColorButton().setText("更改文字颜色");
                 else mainFrame.getChangeColorButton().setText("更改填充颜色");
                 
-                // 如果是文本，设置字体属性
+                // 设置字体属性
                 if (isTextSelected) {
                     TextBox tb = (TextBox) selectedObject;
                     Font f = tb.getFont();
@@ -702,11 +747,10 @@ public class AppController {
                     mainFrame.getItalicCheckBox().setSelected(f.isItalic());
                 }
 
-                // 如果有边框，设置边框属性
+                // 设置边框属性
                 if (hasBorder) {
                     double borderWidth = 0;
                     int borderStyle = 0;
-                    // [!] 核心修复: 获取直线属性
                     if (selectedObject instanceof RectangleShape) {
                         RectangleShape rect = (RectangleShape) selectedObject;
                         borderWidth = rect.getBorderWidth();
@@ -715,23 +759,29 @@ public class AppController {
                         EllipseShape ellipse = (EllipseShape) selectedObject;
                         borderWidth = ellipse.getBorderWidth();
                         borderStyle = ellipse.getBorderStyle();
-                    } else if (selectedObject instanceof LineShape) { // [!] 新增
+                    } else if (selectedObject instanceof LineShape) {
                         LineShape line = (LineShape) selectedObject;
-                        borderWidth = line.getStrokeWidth(); // 直线用 StrokeWidth
+                        borderWidth = line.getStrokeWidth();
                         borderStyle = line.getBorderStyle();
                     }
                     mainFrame.getBorderWidthSpinner().setValue(borderWidth);
                     if (borderWidth == 0) {
-                        mainFrame.getBorderStyleBox().setSelectedIndex(3); // "无边框"
+                        mainFrame.getBorderStyleBox().setSelectedIndex(3);
                     } else {
                         mainFrame.getBorderStyleBox().setSelectedIndex(borderStyle);
                     }
                 }
+
+                // 设置透明度属性
+                if (isImageSelected) {
+                    ImageObject img = (ImageObject) selectedObject;
+                    mainFrame.getOpacitySlider().setValue((int)(img.getOpacity() * 100));
+                }
             }
         } finally {
-            isUpdatingUI = false; // --- 解锁UI更新 ---
+            isUpdatingUI = false;
         }
-    } 
+    }
 
     private void changeSelectedObjectColor() {
         if (selectedObject == null) return;
