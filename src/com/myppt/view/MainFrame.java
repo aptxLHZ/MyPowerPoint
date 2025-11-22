@@ -43,6 +43,8 @@ public class MainFrame extends JFrame {
     private JMenuItem saveAsMenuItem;
     private JMenuItem undoMenuItem;
     private JMenuItem redoMenuItem; 
+    private JMenuItem helpMenuItem;
+    private JMenuItem githubMenuItem;
 
     private JComboBox<String> borderStyleBox;
     private JSlider opacitySlider;
@@ -83,6 +85,15 @@ public class MainFrame extends JFrame {
     editMenu.add(undoMenuItem);
     editMenu.add(redoMenuItem);
     menuBar.add(editMenu);
+
+
+    // --- 帮助菜单 ---
+    JMenu helpMenu = new JMenu("帮助");
+    helpMenuItem = new JMenuItem("使用说明");
+    githubMenuItem = new JMenuItem("跳转到GitHub");
+    helpMenu.add(helpMenuItem);
+    helpMenu.add(githubMenuItem); 
+    menuBar.add(helpMenu);
 
     setJMenuBar(menuBar);
 
@@ -313,15 +324,9 @@ public class MainFrame extends JFrame {
     public JButton getPlayFromStartButton() { return this.playFromStartButton; }
     public JButton getFormatPainterButton() { return formatPainterButton; }
     public JSlider getOpacitySlider() { return opacitySlider; }    
-    public JPanel getTextStyleGroupPanel() {
-        return textStyleGroupPanel;
-    }
-
-    public JPanel getBorderStyleGroupPanel() {
-        return borderStyleGroupPanel;
-    }
-
-    public JPanel getOpacityGroupPanel() {
-        return opacityGroupPanel;
-    }
+    public JPanel getTextStyleGroupPanel() { return textStyleGroupPanel; }
+    public JPanel getBorderStyleGroupPanel() { return borderStyleGroupPanel; }
+    public JPanel getOpacityGroupPanel() { return opacityGroupPanel; }
+    public JMenuItem getHelpMenuItem() { return helpMenuItem; } 
+    public JMenuItem getGithubMenuItem() { return githubMenuItem; } 
 }

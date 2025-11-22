@@ -1,6 +1,5 @@
 package com.myppt.model;
 
-import java.io.Serializable;
 
 public class ImageStyle implements Style {
     private float opacity;

@@ -10,7 +10,11 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.ActionEvent; 
 import java.awt.event.MouseEvent;
-import java.awt.Cursor; 
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.Desktop; 
+
+import java.net.URI; 
 
 import java.io.File;
 import java.io.IOException;
@@ -29,8 +33,11 @@ import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSlider;
 import javax.swing.JTextArea;
+import javax.swing.JTextPane;
 import javax.swing.JViewport;
 import javax.swing.SwingUtilities;
+import javax.swing.JTextArea;
+import javax.swing.JScrollPane;
 
 
 import javax.swing.AbstractAction; // [!] 新增
@@ -45,7 +52,10 @@ import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
+
 import java.util.ArrayList;
+import java.util.Timer;
+import java.util.TimerTask;
 
 
 import com.myppt.view.PlayerFrame; 
@@ -88,6 +98,10 @@ public class AppController {
     private AbstractSlideObject clipboardObject = null; // [!] 新增: 内部剪贴板，用于存储深拷贝的对象
     private Clipboard systemClipboard; // [!] 新增: 系统剪贴板的引用
     private int pasteOffset = 0; // [!] 新增: 记录粘贴的累计偏移量
+    private static final String AUTOSAVE_DIR_NAME = ".autosave"; // [!] 新增: 自动保存目录名
+    private static final String AUTOSAVE_FILE_NAME = AUTOSAVE_DIR_NAME + File.separator + "current.myppt.tmp"; // [!] 修改: 完整文件路径
+    private static final long AUTOSAVE_INTERVAL_MS = 5 * 1000; // 5秒自动保存一次
+    private Timer autosaveTimer; // [!] 新增
 
     public AppController(Presentation presentation, MainFrame mainFrame) {
         systemClipboard = Toolkit.getDefaultToolkit().getSystemClipboard(); // [!] 初始化
@@ -101,11 +115,15 @@ public class AppController {
         
         this.undoManager = new UndoManager();
         this.opacitySlider = mainFrame.getOpacitySlider();
+
+        checkAndRestoreAutosave();// [!] 核心修复: 在构造函数中，先检查自动保存文件
         this.attachListeners();
         updateUI();
 
         updateTitle();
         updateMenuState();
+        
+        startAutosaveTimer();// [!] 核心修复: 启动自动保存定时器
     }
 
 
@@ -320,6 +338,103 @@ public class AppController {
             mainFrame.getCanvasPanel().repaint();
         }
     }
+
+    /**
+     * 启动后台自动保存定时器。
+     */
+    private void startAutosaveTimer() {
+        autosaveTimer = new Timer(true); // true 表示这是一个守护线程，程序退出时会自动停止
+        autosaveTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                // [!] 核心: 在后台线程中执行自动保存
+                performAutosave();
+            }
+        }, AUTOSAVE_INTERVAL_MS, AUTOSAVE_INTERVAL_MS); // 延迟 AUTOSAVE_INTERVAL_MS 后开始，然后每隔 AUTOSAVE_INTERVAL_MS 执行
+        System.out.println("自动保存定时器已启动，每 " + (AUTOSAVE_INTERVAL_MS / 1000) + " 秒保存一次。");
+    }
+
+    /**
+     * 执行自动保存操作，保存到临时文件。
+     */
+    private void performAutosave() {
+        // 1. 确保自动保存目录存在
+        File autosaveDir = new File(AUTOSAVE_DIR_NAME);
+        if (!autosaveDir.exists()) {
+            autosaveDir.mkdirs(); // [!] 如果目录不存在，创建它
+        }
+
+        // 2. 构造临时文件路径
+        File autosaveFile = new File(AUTOSAVE_FILE_NAME);
+        
+        // ... (后续保存逻辑不变) ...
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(autosaveFile))) {
+            oos.writeObject(presentation);
+            System.out.println("自动保存成功: " + AUTOSAVE_FILE_NAME);
+        } catch (IOException e) {
+            System.err.println("自动保存失败: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 检查是否存在自动保存文件，如果存在，则询问用户是否恢复。
+     */
+    private void checkAndRestoreAutosave() {
+        File autosaveFile = new File(AUTOSAVE_FILE_NAME);
+        if (autosaveFile.exists()) {
+            // [!] 发现自动保存文件，询问用户
+            int result = JOptionPane.showConfirmDialog(
+                mainFrame,
+                "检测到上次意外关闭，是否恢复未保存的工作？",
+                "自动恢复",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE
+            );
+
+            if (result == JOptionPane.YES_OPTION) {
+                // 用户选择恢复
+                try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(autosaveFile))) {
+                    this.presentation = (Presentation) ois.readObject();
+                    // [!] 核心: 更新 CanvasPanel 的数据模型
+                    mainFrame.getCanvasPanel().setPresentation(this.presentation);
+                    this.isDirty = true; // 恢复的文件应被标记为已修改，需要用户手动保存
+                    System.out.println("自动保存文件已恢复。");
+                } catch (IOException | ClassNotFoundException e) {
+                    System.err.println("恢复自动保存文件失败: " + e.getMessage());
+                    JOptionPane.showMessageDialog(mainFrame, "自动恢复文件已损坏，无法恢复。", "错误", JOptionPane.ERROR_MESSAGE);
+                    e.printStackTrace();
+                }
+            }
+            
+            // 无论是否恢复，都删除临时文件，防止下次启动再次提示
+            deleteAutosaveFile(); 
+        }
+    }
+
+    /**
+     * 删除自动保存的临时文件。
+     */
+    private void deleteAutosaveFile() {
+        File autosaveFile = new File(AUTOSAVE_FILE_NAME);
+        File autosaveDir = new File(AUTOSAVE_DIR_NAME);
+
+        if (autosaveFile.exists()) {
+            if (autosaveFile.delete()) {
+                System.out.println("自动保存文件已删除。");
+            } else {
+                System.err.println("无法删除自动保存文件: " + AUTOSAVE_FILE_NAME);
+            }
+        }
+        // [!] 如果目录为空，也尝试删除目录
+        if (autosaveDir.exists() && autosaveDir.isDirectory() && autosaveDir.list().length == 0) {
+            if (autosaveDir.delete()) {
+                System.out.println("自动保存目录已删除。");
+            } else {
+                System.err.println("无法删除自动保存目录: " + AUTOSAVE_DIR_NAME);
+            }
+        }
+    }
     
     // --- 核心监听器附加 ---
     private void attachListeners() {
@@ -342,6 +457,8 @@ public class AppController {
                     // 如果用户选择“取消”，则阻止窗口关闭
                     mainFrame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
                 } else {
+                    // [!] 核心修复: 正常关闭时删除自动保存文件
+                    deleteAutosaveFile();
                     // 如果用户选择“是”或“否”，允许窗口正常关闭
                     mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
                 }
@@ -626,6 +743,15 @@ public class AppController {
                     undoManager.executeCommand(command);
                     markAsDirty();
                 }
+            }
+        });
+        mainFrame.getHelpMenuItem().addActionListener(e -> showHelpDialog());
+        mainFrame.getGithubMenuItem().addActionListener(e -> {
+            try {
+                Desktop.getDesktop().browse(new URI("https://github.com/aptxLHZ/MyPowerPoint"));
+            } catch (IOException | java.net.URISyntaxException ex) {
+                JOptionPane.showMessageDialog(mainFrame, "无法打开浏览器，请手动访问：" + "https://github.com/aptxLHZ/MyPowerPoint", "错误", JOptionPane.ERROR_MESSAGE);
+                ex.printStackTrace();
             }
         });
     }
@@ -1149,6 +1275,151 @@ public class AppController {
             updateUI();
             System.out.println("Object pasted from internal clipboard.");
         }
+    }
+
+    /**
+     * 显示用户使用说明对话框。
+     */
+    // 用这个方法完整替换旧的 showHelpDialog()
+    private void showHelpDialog() {
+        String helpHtmlText = 
+            "<html><body>" +
+            "<h2 style='color:#336699;'>*** MyPPT 幻灯片制作与播放软件使用说明 ***</h2>" +
+            "<p>欢迎使用 MyPPT！这是一个功能强大、交互流畅的幻灯片制作工具。</p>" +
+            "<p>本软件在标准PowerPoint功能基础上，进行了多项创新与优化，旨在提供更佳的用户体验。</p>" +
+            
+            "<h3 style='color:#008000;'>--- [基本文件与页面操作] ---</h3>" +
+            "<ul>" +
+            "<li><b>新建幻灯片</b>: 通过菜单栏【文件】->【新建】启动一份空白幻灯片。<br>" +
+            "    <ul>" +
+            "    <li><b style='color:#FF6600;'>智能保存提示</b>: 若当前文件未保存，执行“新建”或“打开”前会弹出专业对话框询问是否保存，防止数据丢失。在文件保存对话框中点击“取消”也能正确返回编辑界面。</li>" +
+            "    </ul>" +
+            "</li>" +
+            "<li><b>打开/保存幻灯片</b>:" +
+            "    <ul>" +
+            "    <li>【文件】->【打开...】: 加载 .myppt 格式的幻灯片文件。</li>" +
+            "    <li>【文件】->【保存】: 保存当前幻灯片到文件。</li>" +
+            "    <li>【文件】->【另存为...】: 将当前幻灯片保存为新文件，并自动将编辑焦点切换到新文件上。</li>" +
+            "    <li><b style='color:#FF6600;'>文件状态可视化</b>: 主窗口标题栏会动态显示当前文件名。文件有修改时，文件名后会自动添加一个“*”号。</li>" +
+            "    <li><b style='color:#FF6600;'>自定义反序列化</b>: 图像等特殊对象在打开时能正确加载，避免了传统序列化可能导致的问题。</li>" +
+            "    </ul>" +
+            "</li>" +
+            "<li><b>页面管理 (左侧面板)</b>:<br>" +
+            "    <ul>" +
+            "    <li>【新建页面】: 工具栏按钮，在当前幻灯片中添加新页面。</li>" +
+            "    <li>【删除页面】: 工具栏按钮，删除当前选中的页面，至少保留一页。</li>" +
+            "    <li><b style='color:#FF6600;'>动态缩略图列表</b>: 左侧面板显示所有页面的实时缩略图，支持垂直滚动。<br>" +
+            "        - 点击缩略图即可【切换页面】，主编辑区与缩略图【实时双向同步】。</li>" +
+            "    </ul>" +
+            "</li>" +
+            "</ul>" +
+            
+            "<h3 style='color:#008000;'>--- [对象创建与核心交互] ---</h3>" +
+            "<ul>" +
+            "<li><b>添加对象 (工具栏)</b>:<br>" +
+            "    <ul>" +
+            "    <li>【添加矩形/椭圆/文本框/插入图片/添加直线】: 点击按钮，然后在中间编辑区点击（或拖拽）创建。</li>" +
+            "    <li><b style='color:#FF6600;'>图片插入</b>: 使用文件选择器，并设置了文件过滤器，只显示常用图片格式。加载失败会提示。</li>" +
+            "    </ul>" +
+            "</li>" +
+            "<li><b>选取对象</b>: 单击对象即可选中。点击空白处取消选中。<br>" +
+            "    <ul>" +
+            "    <li><b style='color:#FF6600;'>页面外选取</b>: 即使对象被拖到页面外，也能被选中。</li>" +
+            "    <li><b style='color:#FF6600;'>顶层优先</b>: 点击重叠对象时，自动选择最顶层对象。</li>" +
+            "    </ul>" +
+            "</li>" +
+            "<li><b>移动对象</b>: 选中对象后，按住鼠标拖动即可。</li>" +
+            "<li><b>缩放对象</b>: 选中对象后，拖动对象周围的【蓝色控制点】即可。<br>" +
+            "    <ul>" +
+            "    <li><b style='color:#FF6600;'>等比例缩放</b>: 拖动角点时，按住【Shift】键即可保持原始比例，支持所有图形和图片。</li>" +
+            "    <li><b style='color:#FF6600;'>文本自动重排</b>: 缩放文本框宽度时，文字能自动换行以适应新宽度，支持中文。</li>" +
+            "    <li><b style='color:#FF6600;'>直线自由伸缩</b>: 直线缩放时，两端点可自由拖拽，彻底改变方向。</li>" +
+            "    <li><b style='color:#FF6600;'>智能鼠标光标</b>: 鼠标悬停在控制点上时，光标会自动变为对应的缩放箭头。</li>" +
+            "    </ul>" +
+            "</li>" +
+            "<li><b>删除对象</b>: 选中对象后，按【Delete】或【Backspace】键，或【右键】菜单选择“删除”。</li>" +
+            "</ul>" +
+            
+            "<h3 style='color:#008000;'>--- [高级编辑功能] ---</h3>" +
+            "<ul>" +
+            "<li><b>层次管理 (右键菜单)</b>: 选中对象后，右键点击对象：<br>" +
+            "    <ul>" +
+            "    <li>【置于顶层/底层】、【上移一层/下移一层】: 精确调整对象图层顺序。</li>" +
+            "    <li><b style='color:#FF6600;'>完全支持撤销/重做</b>: 任何复杂的层次调整都能精确恢复。</li>" +
+            "    </ul>" +
+            "</li>" +
+            "<li><b>修改属性 (右侧面板)</b>:<br>" +
+            "    <ul>" +
+            "    <li><b style='color:#FF6600;'>上下文感知UI</b>: 右侧属性面板会根据选中对象的类型，动态显示/隐藏/启用/禁用相应的属性控件。</li>" +
+            "    <li><b>颜色</b>: 更改对象的填充色/线条色。</li>" +
+            "    <li><b>文本</b>: 【修改文本】按钮更改文本内容，支持多行输入。</li>" +
+            "    <li><b>文字样式</b>: 【字体】、【字号】、【粗体】、【斜体】调整文本样式。<br>" +
+            "        - 提供多种中英文字体选择。</li>" +
+            "    <li><b>边框样式</b>: 【边框颜色】、【粗细】、【线型(实线/虚线/点线)】调整图形边框样式，支持“无边框”选项。</li>" +
+            "    <li><b>图片透明度</b>: 【透明度】滑动条调整图片透明度，支持实时预览和撤销。</li>" +
+            "    <li><b style='color:#FF6600;'>所有属性修改均支持撤销/重做</b>。</li>" +
+            "    </ul>" +
+            "</li>" +
+            "<li><b>格式刷</b>: 选中源对象（文本框、矩形、椭圆、直线、图片），点击工具栏【格式刷】按钮，鼠标变刷子，再点击目标对象。<br>" +
+            "    <ul>" +
+            "    <li><b style='color:#FF6600;'>样式类型兼容性检查</b>: 确保只有同类型对象才能复制样式（如文本刷文本，图形刷图形）。</li>" +
+            "    <li><b style='color:#FF6600;'>支持所有样式属性</b>: 包括颜色、字体、大小、粗细、线型、透明度等。</li>" +
+            "    <li>按【Esc】键取消格式刷模式。</li>" +
+            "    <li><b style='color:#FF6600;'>支持撤销/重做</b>。</li>" +
+            "    </ul>" +
+            "</li>" +
+            "</ul>" +
+            
+            "<h3 style='color:#008000;'>--- [视图与演示] ---</h3>" +
+            "<ul>" +
+            "<li><b>视图缩放与滚动</b>:<br>" +
+            "    <ul>" +
+            "    <li>按【Ctrl/Command】+【鼠标滚轮】进行视图缩放。</li>" +
+            "    <li>按【Shift】+【鼠标滚轮】水平滚动，仅【鼠标滚轮】垂直滚动（支持触摸板）。</li>" +
+            "    <li>【重置视图】按钮恢复默认视图，并居中显示当前页面。</li>" +
+            "    </ul>" +
+            "</li>" +
+            "<li><b>幻灯片播放</b>:<br>" +
+            "    <ul>" +
+            "    <li>【播放】/【从头播放(F5)】按钮启动全屏播放。</li>" +
+            "    <li>【鼠标单击】或【右方向键】前进到下一页，【左方向键】返回上一页。</li>" +
+            "    <li>按【Esc】键退出播放。</li>" +
+            "    <li><b style='color:#FF6600;'>专业播放体验</b>: 播放时隐藏主窗口，退出后恢复；播放结束有提示信息；仅播放页面内内容，自动裁剪边界外对象。</li>" +
+            "    </ul>" +
+            "</li>" +
+            "</ul>" +
+            
+            "<h3 style='color:#008000;'>--- [常用快捷键] ---</h3>" +
+            "<ul>" +
+            "<li><b>撤销</b>: Ctrl/Command + Z</li>" +
+            "<li><b>重做</b>: Ctrl/Command + Y (macOS: Cmd + Shift + Z)</li>" +
+            "<li><b>删除对象</b>: Delete / Backspace</li>" +
+            "<li><b>从头播放</b>: F5</li>" +
+            "</ul>" +
+            
+            "<p><br>感谢您的使用！</p>" +
+            "<p><br>MyPPT开发者：LHZ。</p>" +
+            "</body></html>";
+
+        JTextPane textPane = new JTextPane();
+        textPane.setContentType("text/html");
+        textPane.setText(helpHtmlText);
+        textPane.setEditable(false);
+        textPane.setFont(new Font("Dialog", Font.PLAIN, 14)); // 设置一个清晰的默认字体和大小
+        
+        JScrollPane scrollPane = new JScrollPane(textPane);
+        scrollPane.setPreferredSize(new Dimension(650, 500)); // 适当增大对话框的初始尺寸
+        
+        SwingUtilities.invokeLater(() -> {
+            scrollPane.getVerticalScrollBar().setValue(0); // 将垂直滚动条的值设为0，即最顶部
+        });
+        
+        JOptionPane.showMessageDialog(
+            mainFrame,
+            scrollPane,
+            "MyPPT 使用说明",
+            JOptionPane.INFORMATION_MESSAGE
+        );
     }
 
 }
