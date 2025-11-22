@@ -5,6 +5,13 @@ import java.io.Serializable;
 import java.util.EnumMap;
 import java.util.Map;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.util.UUID;
+
 import com.myppt.controller.strategies.ResizeHandle;
 
 import java.awt.Point; // [!] 新增: 引入Point类来表示坐标点
@@ -17,6 +24,7 @@ import java.awt.Rectangle;
 public abstract class AbstractSlideObject implements Serializable {
     
     private static final long serialVersionUID = 1L;
+    private UUID id = UUID.randomUUID();
     
     // 所有元素都有x, y坐标
     public int x;
@@ -107,5 +115,35 @@ public abstract class AbstractSlideObject implements Serializable {
     public abstract Rectangle getBounds();
 
     public abstract void setBounds(Rectangle bounds);
+
+
+    public UUID getId() { return id; }
+
+    // [!] 新增: 在深拷贝后生成一个新的ID
+    protected void assignNewId() {
+        this.id = UUID.randomUUID();
+    }
+    
+    public AbstractSlideObject deepCopy() {
+        try {
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            ObjectOutputStream oos = new ObjectOutputStream(bos);
+            oos.writeObject(this);
+            oos.flush();
+            byte[] bytes = bos.toByteArray();
+            
+            ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
+            ObjectInputStream ois = new ObjectInputStream(bis);
+            AbstractSlideObject copy = (AbstractSlideObject) ois.readObject();
+            
+            copy.assignNewId(); // [!] 核心: 为副本分配新的ID
+            
+            return copy;
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
 
 }

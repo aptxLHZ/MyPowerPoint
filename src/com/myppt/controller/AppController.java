@@ -40,6 +40,11 @@ import javax.swing.JComponent;     // [!] 新增
 import javax.swing.KeyStroke;      // [!] 新增
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
+import java.util.ArrayList;
 
 
 import com.myppt.view.PlayerFrame; 
@@ -79,8 +84,13 @@ public class AppController {
     private Style copiedStyle = null;
     private float opacityBeforeChange; 
     private JSlider opacitySlider; 
+    private AbstractSlideObject clipboardObject = null; // [!] 新增: 内部剪贴板，用于存储深拷贝的对象
+    private Clipboard systemClipboard; // [!] 新增: 系统剪贴板的引用
+    private int pasteOffset = 0; // [!] 新增: 记录粘贴的累计偏移量
 
     public AppController(Presentation presentation, MainFrame mainFrame) {
+        systemClipboard = Toolkit.getDefaultToolkit().getSystemClipboard(); // [!] 初始化
+        
         this.presentation = presentation;
         this.mainFrame = mainFrame;
         this.mainFrame.setupCanvas(presentation);
@@ -702,6 +712,38 @@ public class AppController {
             }
         });
 
+
+
+        // --- 绑定 Copy (Ctrl+C) ---
+        String copyActionKey = "copyAction";
+        KeyStroke copyKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_C, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
+        inputMap.put(copyKeyStroke, copyActionKey);
+        actionMap.put(copyActionKey, new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                copySelectedObject();
+            }
+        });
+
+        // --- 绑定 Cut (Ctrl+X) ---
+        String cutActionKey = "cutAction";
+        KeyStroke cutKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_X, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
+        inputMap.put(cutKeyStroke, cutActionKey);
+        actionMap.put(cutActionKey, new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                cutSelectedObject();
+            }
+        });
+
+        // --- 绑定 Paste (Ctrl+V) ---
+        String pasteActionKey = "pasteAction";
+        KeyStroke pasteKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_V, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
+        inputMap.put(pasteKeyStroke, pasteActionKey);
+        actionMap.put(pasteActionKey, new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                pasteObject();
+            }
+        });
+
     }
 
     public void updatePropertiesPanel() {
@@ -1019,4 +1061,67 @@ public class AppController {
         }
         mainFrame.setTitle(title);
     }
+
+    /**
+     * 复制选中的对象到内部剪贴板。
+     */
+    private void copySelectedObject() {
+        if (selectedObject != null) {
+            clipboardObject = selectedObject.deepCopy();
+            pasteOffset = 0; // [!] 新增: 复制新对象时，重置偏移量
+            // [!] 可选: 也可以复制到系统剪贴板，但我们只做内部复制
+            // StringSelection ss = new StringSelection(selectedObject.getId().toString()); // 示例：复制ID
+            // systemClipboard.setContents(ss, null);
+            System.out.println("Object copied to internal clipboard.");
+        }
+    }
+
+    /**
+     * 剪切选中的对象到内部剪贴板，并删除原对象。
+     */
+    private void cutSelectedObject() {
+        if (selectedObject != null) {
+            copySelectedObject(); // 先复制
+            // 然后执行删除操作
+            Command command = new DeleteObjectCommand(presentation.getCurrentSlide(), selectedObject);
+            undoManager.executeCommand(command);
+            markAsDirty();
+            setSelectedObject(null); // 删除后取消选中
+            updateUI();
+            System.out.println("Object cut to internal clipboard.");
+        }
+    }
+
+    /**
+     * 从内部剪贴板粘贴对象。
+     */
+    private void pasteObject() {
+        if (clipboardObject != null) {
+            AbstractSlideObject pastedObject = clipboardObject.deepCopy(); // 每次粘贴都是一个新的副本
+            
+            // [!] 核心修复: 每次粘贴都使用累计偏移量
+            int offsetX = 20; // 每次粘贴向右下偏移的像素
+            int offsetY = 20;
+            
+            pastedObject.setX(pastedObject.getX() + pasteOffset + offsetX);
+            pastedObject.setY(pastedObject.getY() + pasteOffset + offsetY);
+
+            pasteOffset += offsetX; // 更新累计偏移量
+
+            // 如果偏移量过大，可以考虑重置，或让它在页面内循环
+            if (pastedObject.getX() > (Slide.PAGE_WIDTH - 50) || pastedObject.getY() > (Slide.PAGE_HEIGHT - 50)) {
+                pasteOffset = 0; // 粘贴到页面边界附近时重置
+            }
+
+
+            // 执行添加操作
+            Command command = new AddObjectCommand(presentation.getCurrentSlide(), pastedObject);
+            undoManager.executeCommand(command);
+            markAsDirty();
+            setSelectedObject(pastedObject); // 粘贴后选中新对象
+            updateUI();
+            System.out.println("Object pasted from internal clipboard.");
+        }
+    }
+
 }
