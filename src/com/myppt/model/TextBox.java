@@ -209,4 +209,17 @@ public class TextBox extends AbstractSlideObject {
         updateHeightForWidth(this.width);
     }
 
+    @Override
+    public Style getStyle() {
+        return new TextStyle(this.font, this.textColor);
+    }
+
+    @Override
+    public void setStyle(Style style) {
+        if (style instanceof TextStyle) {
+            TextStyle ts = (TextStyle) style;
+            this.setFont(ts.getFont()); // 使用setFont以确保边界更新
+            this.setTextColor(ts.getColor());
+        }
+    }
 }

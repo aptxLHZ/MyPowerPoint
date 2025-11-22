@@ -24,6 +24,11 @@ public abstract class AbstractSlideObject implements Serializable {
 
     public static final int HANDLE_SIZE = 8; // 控制点小方块的大小
 
+    // [!] 核心修复: 将边框样式常量提升到抽象基类
+    public static final int BORDER_STYLE_SOLID = 0;
+    public static final int BORDER_STYLE_DASHED = 1;
+    public static final int BORDER_STYLE_DOTTED = 2;
+
     // [!] 新增: 选中状态标志
     protected boolean selected = false;
 
@@ -31,6 +36,9 @@ public abstract class AbstractSlideObject implements Serializable {
         this.x = x;
         this.y = y;
     }
+
+    public abstract Style getStyle();
+    public abstract void setStyle(Style style);
 
     // 这是一个抽象方法。
     // 它只声明“所有子类都必须会画自己”，但具体怎么画，由子类自己去实现。

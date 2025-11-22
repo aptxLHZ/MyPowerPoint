@@ -29,6 +29,7 @@ public class MainFrame extends JFrame {
     private JButton borderColorButton; 
     private JButton playButton;
     private JButton playFromStartButton;
+    private JButton formatPainterButton;
 
     private JComboBox<String> fontNameBox;
     private JSpinner fontSizeSpinner;
@@ -91,6 +92,7 @@ public class MainFrame extends JFrame {
     deleteSlideButton = new JButton("删除页面");
     playButton = new JButton("播放");
     playFromStartButton = new JButton("从头播放(F5)");
+    formatPainterButton = new JButton("格式刷");
     
 
     toolBar.add(newSlideButton);
@@ -101,6 +103,7 @@ public class MainFrame extends JFrame {
     toolBar.add(addTextButton); 
     toolBar.add(addImageButton);
     toolBar.add(resetViewButton);
+    toolBar.add(formatPainterButton); 
     add(toolBar, BorderLayout.NORTH);
 
     toolBar.add(Box.createHorizontalGlue()); // 一个弹簧，会把播放按钮推到最右边
@@ -279,4 +282,6 @@ public class MainFrame extends JFrame {
     public JMenuItem getUndoMenuItem() { return undoMenuItem; }
     public JMenuItem getRedoMenuItem() { return redoMenuItem; }
     public JButton getPlayFromStartButton() { return this.playFromStartButton; }
+    public JButton getFormatPainterButton() { return formatPainterButton; }
+        
 }

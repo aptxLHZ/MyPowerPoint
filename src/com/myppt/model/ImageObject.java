@@ -1,5 +1,6 @@
 package com.myppt.model;
 
+import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image; // 使用 java.awt.Image 来存储图片数据
@@ -95,4 +96,22 @@ public class ImageObject extends AbstractSlideObject {
         this.width = bounds.width;
         this.height = bounds.height;
     }
+
+    @Override
+    public Style getStyle() {
+        // 图像目前没有可复制的“样式”，或者说样式比较特殊（如透明度）
+        // 为了满足接口，返回一个简单的 ShapeStyle 副本，但实际效果不佳
+        // 我们可以返回一个空 Style，或者一个 ImageStyle 类。
+        // 为了简化，我们暂时返回一个 ShapeStyle，但它可能不符合语义
+        return new ShapeStyle(Color.WHITE, Color.BLACK, 0, 0); // 暂时返回一个无意义的ShapeStyle
+    }
+
+    @Override
+    public void setStyle(Style style) {
+        // 图像目前无法应用 ShapeStyle 或 TextStyle
+        // 如果后续实现透明度，可以在这里处理 ImageStyle
+        System.out.println("ImageObject 暂不支持格式刷样式应用。");
+    }
+
+
 }

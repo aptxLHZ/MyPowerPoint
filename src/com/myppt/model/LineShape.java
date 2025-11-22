@@ -21,6 +21,7 @@ public class LineShape extends AbstractSlideObject {
     public int y2;
     private Color lineColor;
     private float strokeWidth;
+    private int borderStyle = AbstractSlideObject.BORDER_STYLE_SOLID; 
 
     public LineShape(int x1, int y1, int x2, int y2, Color color, float width) {
         super(x1, y1); // 父类的 x, y 就代表我们的 x1, y1
@@ -54,7 +55,7 @@ public class LineShape extends AbstractSlideObject {
         // Line2D.ptSegDist 可以计算一个点到线段的最短距离
         // 如果这个距离小于一个阈值（比如5个像素），我们就认为点中了这条线
         double distance = Line2D.ptSegDist(this.x, this.y, this.x2, this.y2, p.x, p.y);
-        return distance < 5; // 5像素的点击容差
+        return distance < 8; // 5像素的点击容差
     }
 
     @Override
@@ -65,6 +66,22 @@ public class LineShape extends AbstractSlideObject {
         Stroke originalStroke = g2d.getStroke();
 
         g2d.setColor(this.lineColor);
+
+        float width = this.strokeWidth;
+        Stroke lineStroke;
+        switch (borderStyle) {
+            case AbstractSlideObject.BORDER_STYLE_DASHED:
+                lineStroke = new BasicStroke(width, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, new float[]{10.0f, 5.0f}, 0.0f);
+                break;
+            case AbstractSlideObject.BORDER_STYLE_DOTTED:
+                lineStroke = new BasicStroke(width, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 10.0f, new float[]{width, width * 2}, 0.0f);
+                break;
+            case AbstractSlideObject.BORDER_STYLE_SOLID:
+            default:
+                lineStroke = new BasicStroke(width);
+                break;
+        }
+
         g2d.setStroke(new BasicStroke(this.strokeWidth)); // 设置线条粗细
         g2d.drawLine(this.x, this.y, this.x2, this.y2);
 
@@ -107,5 +124,31 @@ public class LineShape extends AbstractSlideObject {
         handles.put(ResizeHandle.BOTTOM_RIGHT, new Rectangle(x2 - HANDLE_SIZE / 2, y2 - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE));
         return handles;
     }
+
+
+    @Override
+    public Style getStyle() {
+        return new ShapeStyle(Color.BLACK, this.lineColor, this.strokeWidth, this.borderStyle); 
+    }
+
+    @Override
+    public void setStyle(Style style) {
+        if (style instanceof ShapeStyle) {
+            ShapeStyle ss = (ShapeStyle) style;
+            this.setLineColor(ss.getBorderColor());
+            this.setStrokeWidth((float)ss.getBorderWidth());
+            this.setBorderStyle(ss.getBorderStyle());
+        }
+    }
+
+    public void setStrokeWidth(float strokeWidth) {
+        this.strokeWidth = strokeWidth;
+    }
+    public float getStrokeWidth() {
+        return this.strokeWidth;
+    }
+
+    public int getBorderStyle() { return borderStyle; }
+    public void setBorderStyle(int borderStyle) { this.borderStyle = borderStyle; }
 
 }

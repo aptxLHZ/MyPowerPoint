@@ -10,6 +10,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.ActionEvent; 
 import java.awt.event.MouseEvent;
+import java.awt.Cursor; 
 
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +33,7 @@ import javax.swing.SwingUtilities;
 
 import javax.swing.AbstractAction; // [!] 新增
 import javax.swing.ActionMap;      // [!] 新增
+import javax.swing.ImageIcon;
 import javax.swing.InputMap;       // [!] 新增
 import javax.swing.JComponent;     // [!] 新增
 import javax.swing.KeyStroke;      // [!] 新增
@@ -54,6 +56,7 @@ import com.myppt.commands.ChangeTextCommand;
 import com.myppt.commands.ChangeFontCommand;
 import com.myppt.commands.ChangeBorderCommand;
 
+
 /**
  * 应用程序的主控制器，负责协调各个部分。
  * 将画布的具体交互逻辑委托给 CanvasController 和相应的交互策略。
@@ -71,6 +74,7 @@ public class AppController {
     private UndoManager undoManager;
     private double borderWidthBeforeChange;
     private boolean isSpinnerDragging = false;
+    private Style copiedStyle = null;
 
     public AppController(Presentation presentation, MainFrame mainFrame) {
         this.presentation = presentation;
@@ -107,10 +111,11 @@ public class AppController {
     public AbstractSlideObject getSelectedObject() { return selectedObject; }
     public InteractionStrategy getCurrentStrategy() { return currentStrategy; }
     public UndoManager getUndoManager() { return this.undoManager; }
-    
     public void setSelectedObject(AbstractSlideObject object) {
         this.selectedObject = object;
     }
+    public Style getCopiedStyle() { return copiedStyle; }
+    public void setCopiedStyle(Style copiedStyle) { this.copiedStyle = copiedStyle; }
 
     /**
      * 处理“新建”命令。
@@ -269,6 +274,10 @@ public class AppController {
             case "DRAW_LINE":
                 this.currentStrategy = new DrawLineStrategy(this);
                 break;
+            case "FORMAT_PAINTER":
+                // 进入格式刷模式，我们不需要新的策略，因为它的逻辑很简单
+                this.currentStrategy = new NullStrategy(); // 暂时禁用其他鼠标交互
+                break;
             default:
                 this.currentStrategy = new NullStrategy();
         }
@@ -385,17 +394,29 @@ public class AppController {
         mainFrame.getSaveAsMenuItem().addActionListener(e -> saveAsToFile());
         mainFrame.getBorderColorButton().addActionListener(e -> {
             if (isUpdatingUI || selectedObject == null) return;
-            if (!(selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape)) return;
+            if (!(selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape || selectedObject instanceof LineShape)) return;
 
-            // 获取当前所有边框属性
-            Color currentColor = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderColor() : ((EllipseShape) selectedObject).getBorderColor();
-            double currentWidth = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderWidth() : ((EllipseShape) selectedObject).getBorderWidth();
-            int currentStyle = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderStyle() : ((EllipseShape) selectedObject).getBorderStyle();
+            Color currentColor = Color.BLACK; // 默认值
+            double currentWidth = 1.0;
+            int currentStyle = AbstractSlideObject.BORDER_STYLE_SOLID;
+
+            if (selectedObject instanceof RectangleShape) {
+                currentColor = ((RectangleShape) selectedObject).getBorderColor();
+                currentWidth = ((RectangleShape) selectedObject).getBorderWidth();
+                currentStyle = ((RectangleShape) selectedObject).getBorderStyle();
+            } else if (selectedObject instanceof EllipseShape) {
+                currentColor = ((EllipseShape) selectedObject).getBorderColor();
+                currentWidth = ((EllipseShape) selectedObject).getBorderWidth();
+                currentStyle = ((EllipseShape) selectedObject).getBorderStyle();
+            } else if (selectedObject instanceof LineShape) {
+                currentColor = ((LineShape) selectedObject).getLineColor();
+                currentWidth = ((LineShape) selectedObject).getStrokeWidth();
+                currentStyle = ((LineShape) selectedObject).getBorderStyle();
+            }
             
             Color newColor = JColorChooser.showDialog(mainFrame, "选择边框颜色", currentColor);
             
             if (newColor != null && !newColor.equals(currentColor)) {
-                // 创建命令时，只改变颜色，其他属性保持不变
                 Command command = new ChangeBorderCommand(selectedObject, newColor, currentWidth, currentStyle);
                 undoManager.executeCommand(command);
 
@@ -405,67 +426,64 @@ public class AppController {
         });
         mainFrame.getBorderWidthSpinner().addChangeListener(e -> {
             if (isUpdatingUI || selectedObject == null) return;
-            if (!(selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape)) return;
+            if (!(selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape || selectedObject instanceof LineShape)) return;
 
             // ChangeListener 只是实时更新UI，不创建命令
             double newWidth = ((Number)mainFrame.getBorderWidthSpinner().getValue()).doubleValue();
             if (selectedObject instanceof RectangleShape) {
                 ((RectangleShape) selectedObject).setBorderWidth(newWidth);
-            } else {
+            } else if (selectedObject instanceof EllipseShape) {
                 ((EllipseShape) selectedObject).setBorderWidth(newWidth);
+            } else if (selectedObject instanceof LineShape) {
+                ((LineShape) selectedObject).setStrokeWidth((float)newWidth);
             }
             markAsDirty();
             mainFrame.getCanvasPanel().repaint();
             repaintThumbnails();
-            // 实时更新可能会影响线型下拉框的状态（比如宽度变为0）
-            updatePropertiesPanel();
+            updatePropertiesPanel(); // 实时更新可能会影响线型下拉框的状态（比如宽度变为0）
         });
         mainFrame.getBorderWidthSpinner().addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                if (isUpdatingUI || selectedObject == null) return; 
-                // 鼠标按下时，记录下操作前的宽度
+                if (isUpdatingUI || selectedObject == null) return;
+                isSpinnerDragging = true;
                 if (selectedObject instanceof RectangleShape) {
                     borderWidthBeforeChange = ((RectangleShape) selectedObject).getBorderWidth();
                 } else if (selectedObject instanceof EllipseShape) {
                     borderWidthBeforeChange = ((EllipseShape) selectedObject).getBorderWidth();
+                } else if (selectedObject instanceof LineShape) {
+                    borderWidthBeforeChange = ((LineShape) selectedObject).getStrokeWidth();
                 }
             }
+
             @Override
             public void mouseReleased(MouseEvent e) {
                 if (!isSpinnerDragging) return;
-                
                 isSpinnerDragging = false;
-                
-                double newWidth = ((Number)mainFrame.getBorderWidthSpinner().getValue()).doubleValue();
-
-                if (newWidth != borderWidthBeforeChange) {
-                    // [!] 直接创建命令，不再获取多余的 color 和 style
+                double newValue = ((Number)mainFrame.getBorderWidthSpinner().getValue()).doubleValue();
+                if (newValue != borderWidthBeforeChange) {
                     Object target = selectedObject;
                     
-                    // 先把模型状态恢复到操作前
+                    // 恢复模型状态 (确保 UndoManager 的 executeCommand 是从 oldValue 到 newValue)
                     if (target instanceof RectangleShape) ((RectangleShape) target).setBorderWidth(borderWidthBeforeChange);
                     else if (target instanceof EllipseShape) ((EllipseShape) target).setBorderWidth(borderWidthBeforeChange);
+                    else if (target instanceof LineShape) ((LineShape) target).setStrokeWidth((float)borderWidthBeforeChange);
 
-                    // 创建一个只改变宽度的匿名命令
-                    Command command = new Command() {
-                        private final double fromValue = borderWidthBeforeChange;
-                        private final double toValue = newWidth;
-
-                        @Override
-                        public void execute() {
-                            if (target instanceof RectangleShape) ((RectangleShape) target).setBorderWidth(toValue);
-                            else if (target instanceof EllipseShape) ((EllipseShape) target).setBorderWidth(toValue);
-                            updateUI();
-                        }
-                        @Override
-                        public void undo() {
-                            if (target instanceof RectangleShape) ((RectangleShape) target).setBorderWidth(fromValue);
-                            else if (target instanceof EllipseShape) ((EllipseShape) target).setBorderWidth(fromValue);
-                            updateUI();
-                        }
-                    };
-
+                    // 获取其他属性的当前值
+                    Color currentColor = Color.BLACK; // 默认值
+                    int currentStyle = AbstractSlideObject.BORDER_STYLE_SOLID;
+                    if (selectedObject instanceof RectangleShape) {
+                        currentColor = ((RectangleShape) selectedObject).getBorderColor();
+                        currentStyle = ((RectangleShape) selectedObject).getBorderStyle();
+                    } else if (selectedObject instanceof EllipseShape) {
+                        currentColor = ((EllipseShape) selectedObject).getBorderColor();
+                        currentStyle = ((EllipseShape) selectedObject).getBorderStyle();
+                    } else if (selectedObject instanceof LineShape) {
+                        currentColor = ((LineShape) selectedObject).getLineColor();
+                        currentStyle = ((LineShape) selectedObject).getBorderStyle();
+                    }
+                    
+                    Command command = new ChangeBorderCommand(target, currentColor, newValue, currentStyle); // newWidth 是 newValue
                     undoManager.executeCommand(command);
                     markAsDirty();
                 }
@@ -473,39 +491,64 @@ public class AppController {
         });
         mainFrame.getBorderStyleBox().addActionListener(e -> {
             if (isUpdatingUI || selectedObject == null) return;
-            if (!(selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape)) return;
+            if (!(selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape || selectedObject instanceof LineShape)) return;
 
             int selectedIndex = mainFrame.getBorderStyleBox().getSelectedIndex();
             
-            // 获取当前其他属性的值
-            Color currentColor = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderColor() : ((EllipseShape) selectedObject).getBorderColor();
-            double currentWidth = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderWidth() : ((EllipseShape) selectedObject).getBorderWidth();
+            Color currentColor = Color.BLACK;
+            double currentWidth = 1.0;
+            int currentStyle = AbstractSlideObject.BORDER_STYLE_SOLID;
+
+            // 获取当前其他属性的值 (区分直线)
+            if (selectedObject instanceof RectangleShape) {
+                currentColor = ((RectangleShape) selectedObject).getBorderColor();
+                currentWidth = ((RectangleShape) selectedObject).getBorderWidth();
+                currentStyle = ((RectangleShape) selectedObject).getBorderStyle();
+            } else if (selectedObject instanceof EllipseShape) {
+                currentColor = ((EllipseShape) selectedObject).getBorderColor();
+                currentWidth = ((EllipseShape) selectedObject).getBorderWidth();
+                currentStyle = ((EllipseShape) selectedObject).getBorderStyle();
+            } else if (selectedObject instanceof LineShape) {
+                currentColor = ((LineShape) selectedObject).getLineColor();
+                currentWidth = ((LineShape) selectedObject).getStrokeWidth();
+                currentStyle = ((LineShape) selectedObject).getBorderStyle();
+            }
             
             double newWidth = currentWidth;
             int newStyle = selectedIndex;
 
             // 处理“无边框”选项
-            if (selectedIndex == 3) {
+            if (selectedIndex == 3) { // "无边框"
                 newWidth = 0;
                 // 保持原有的线型，以便恢复
-                newStyle = (selectedObject instanceof RectangleShape) ? ((RectangleShape) selectedObject).getBorderStyle() : ((EllipseShape) selectedObject).getBorderStyle();
+                newStyle = currentStyle; // [!] 核心修复: 保持旧样式，而不是根据选中对象再判断
             } else {
-                // 如果之前是“无边框”，切换回来时给一个默认宽度
                 if (currentWidth == 0) {
-                    newWidth = 1.0;
+                    newWidth = 1.0; // 如果之前是无边框，现在恢复默认宽度
                 }
+                newStyle = selectedIndex; // 真正的线型
             }
 
-            Command command = new ChangeBorderCommand(selectedObject, currentColor, newWidth, newStyle);
-            undoManager.executeCommand(command);
-
-            markAsDirty();
-            updateUI();
+            // 只有当属性真的改变时才创建命令
+            if (newWidth != currentWidth || newStyle != currentStyle) {
+                Command command = new ChangeBorderCommand(selectedObject, currentColor, newWidth, newStyle);
+                undoManager.executeCommand(command);
+                markAsDirty();
+                updateUI();
+            }
         });
         mainFrame.getPlayFromStartButton().addActionListener(e -> {playPresentation(true);  });
         mainFrame.getPlayButton().addActionListener(e -> { playPresentation(false);  });
         mainFrame.getUndoMenuItem().addActionListener(e -> { undoManager.undo(); updateUI();});
         mainFrame.getRedoMenuItem().addActionListener(e -> { undoManager.redo(); updateUI();});
+        mainFrame.getFormatPainterButton().addActionListener(e -> {
+            if (selectedObject != null) {
+                copiedStyle = selectedObject.getStyle();
+                setMode("FORMAT_PAINTER"); // 进入一个新模式
+                // [!] 核心修复: 直接使用系统提供的十字光标
+                mainFrame.getCanvasPanel().setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+            }
+        });
     }
 
     private void attachMouseWheelListener() {
@@ -602,17 +645,32 @@ public class AppController {
                 playPresentation(true);
             }
         });
+
+        // --- 绑定 ESC (取消格式刷模式) ---
+        String cancelActionKey = "cancelAction";
+        KeyStroke escKeyStroke = KeyStroke.getKeyStroke("ESCAPE");
+        inputMap.put(escKeyStroke, cancelActionKey);
+        actionMap.put(cancelActionKey, new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                if (currentMode.equals("FORMAT_PAINTER")) {
+                    setMode("SELECT");
+                    mainFrame.getCanvasPanel().setCursor(Cursor.getDefaultCursor());
+                    copiedStyle = null; // 清除复制的样式
+                }
+            }
+        });
+
     }
 
     public void updatePropertiesPanel() {
-        // --- 锁住UI更新 ---
         isUpdatingUI = true;
         try {
             boolean isTextSelected = selectedObject instanceof TextBox;
-            boolean hasBorder = selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape;
+            // [!] 核心修复: hasBorder 现在也包含 LineShape
+            boolean hasBorder = selectedObject instanceof RectangleShape || selectedObject instanceof EllipseShape || selectedObject instanceof LineShape;
 
             // --- 更新所有控件的【可见性】和【可用性】 ---
-            mainFrame.getChangeColorButton().setEnabled(selectedObject != null);
+            mainFrame.getChangeColorButton().setEnabled(selectedObject != null); // 任何对象都能改颜色
             mainFrame.getEditTextButton().setEnabled(isTextSelected);
             mainFrame.getFontNameBox().setEnabled(isTextSelected);
             mainFrame.getFontSizeSpinner().setEnabled(isTextSelected);
@@ -623,7 +681,7 @@ public class AppController {
             mainFrame.getBorderColorButton().setVisible(hasBorder);
             mainFrame.getBorderColorButton().setEnabled(hasBorder);
             mainFrame.getBorderWidthSpinner().getParent().setVisible(hasBorder);
-            mainFrame.getBorderWidthSpinner().setEnabled(hasBorder); // 注意：是对Spinner本身设置
+            mainFrame.getBorderWidthSpinner().setEnabled(hasBorder);
             mainFrame.getBorderStyleBox().getParent().setVisible(hasBorder);
             mainFrame.getBorderStyleBox().setEnabled(hasBorder);
 
@@ -648,6 +706,7 @@ public class AppController {
                 if (hasBorder) {
                     double borderWidth = 0;
                     int borderStyle = 0;
+                    // [!] 核心修复: 获取直线属性
                     if (selectedObject instanceof RectangleShape) {
                         RectangleShape rect = (RectangleShape) selectedObject;
                         borderWidth = rect.getBorderWidth();
@@ -656,21 +715,23 @@ public class AppController {
                         EllipseShape ellipse = (EllipseShape) selectedObject;
                         borderWidth = ellipse.getBorderWidth();
                         borderStyle = ellipse.getBorderStyle();
+                    } else if (selectedObject instanceof LineShape) { // [!] 新增
+                        LineShape line = (LineShape) selectedObject;
+                        borderWidth = line.getStrokeWidth(); // 直线用 StrokeWidth
+                        borderStyle = line.getBorderStyle();
                     }
                     mainFrame.getBorderWidthSpinner().setValue(borderWidth);
                     if (borderWidth == 0) {
-                        mainFrame.getBorderStyleBox().setSelectedIndex(3);
+                        mainFrame.getBorderStyleBox().setSelectedIndex(3); // "无边框"
                     } else {
                         mainFrame.getBorderStyleBox().setSelectedIndex(borderStyle);
                     }
                 }
             }
         } finally {
-            // --- 解锁UI更新 ---
-            isUpdatingUI = false;
+            isUpdatingUI = false; // --- 解锁UI更新 ---
         }
-    }
-
+    } 
 
     private void changeSelectedObjectColor() {
         if (selectedObject == null) return;

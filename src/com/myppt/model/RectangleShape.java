@@ -19,11 +19,6 @@ public class RectangleShape extends AbstractSlideObject {
     private Color borderColor = Color.BLACK; // [!] 新增: 默认为黑色
     private double borderWidth = 1.0f;        // [!] 新增: 默认为1像素
 
-    // [!] 新增: 线型定义
-    public static final int BORDER_STYLE_SOLID = 0;
-    public static final int BORDER_STYLE_DASHED = 1;
-    public static final int BORDER_STYLE_DOTTED = 2;
-
     private int borderStyle = BORDER_STYLE_SOLID; // 默认为实线
 
     public RectangleShape(int x, int y, int width, int height, Color fillColor) {
@@ -123,5 +118,20 @@ public class RectangleShape extends AbstractSlideObject {
         this.y = bounds.y;
         this.width = bounds.width;
         this.height = bounds.height;
+    }
+    @Override
+    public Style getStyle() {
+        return new ShapeStyle(this.fillColor, this.borderColor, this.borderWidth, this.borderStyle);
+    }
+
+    @Override
+    public void setStyle(Style style) {
+        if (style instanceof ShapeStyle) {
+            ShapeStyle ss = (ShapeStyle) style;
+            this.setFillColor(ss.getFillColor());
+            this.setBorderColor(ss.getBorderColor());
+            this.setBorderWidth(ss.getBorderWidth());
+            this.setBorderStyle(ss.getBorderStyle());
+        }
     }
 }

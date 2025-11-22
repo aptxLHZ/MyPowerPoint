@@ -83,4 +83,9 @@ public class CanvasPanel extends JPanel {
         
         g2d.setTransform(oldTransform);
     }
+
+    public void setCursor(int crosshairCursor) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'setCursor'");
+    }
 }
