@@ -3,7 +3,6 @@ package com.myppt.commands;
 import com.myppt.model.*;
 import java.awt.Color;
 
-// 这是一个更复杂的通用命令，我们先用简单版本
 
 public class ChangeColorCommand implements Command {
     private AbstractSlideObject targetObject;

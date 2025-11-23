@@ -8,7 +8,6 @@ import java.awt.Point;
 import java.awt.Stroke;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
-import java.io.File;
 import java.io.IOException;
 import java.io.ByteArrayInputStream;
 import javax.imageio.ImageIO;

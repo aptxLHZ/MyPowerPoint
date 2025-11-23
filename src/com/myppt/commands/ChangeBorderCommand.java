@@ -2,138 +2,111 @@ package com.myppt.commands;
 
 import java.awt.Color;
 import com.myppt.model.EllipseShape;
+import com.myppt.model.LineShape;
 import com.myppt.model.RectangleShape;
-import com.myppt.model.LineShape; // [!] 新增
 
+/**
+ * [已重构] 一个统一的命令，用于修改任何支持边框或线条的对象的属性（颜色、宽度、样式）。
+ * 这个版本移除了复杂的适配器模式，改用更直接的 instanceof 判断，以提高代码的清晰度和健壮性。
+ */
 public class ChangeBorderCommand implements Command {
-    // [!] 核心修复: 统一接口，包含所有图形的边框/线条属性
-    interface Borderable {
-        // 用于 Rectangle/Ellipse
-        void setBorderColor(Color color);
-        Color getBorderColor();
-        void setBorderWidth(double width);
-        double getBorderWidth();
-        void setBorderStyle(int style);
-        int getBorderStyle();
-        
-        // 用于 LineShape
-        void setLineColor(Color color);
-        Color getLineColor();
-        void setStrokeWidth(float width); // 注意这里是 float
-        float getStrokeWidth();
-    }
 
-    private Borderable target;
-    
-    private Color oldColor, newColor;
-    private double oldWidth, newWidth; // 统一用 double
-    private int oldStyle, newStyle;
+    private final Object targetObject; // 直接存储目标对象，类型为Object
 
-    public ChangeBorderCommand(Object targetObject, Color newColor, double newWidth, int newStyle) {
-        if (targetObject instanceof RectangleShape) {
-            this.target = new BorderableRectangleShape((RectangleShape) targetObject);
-        } else if (targetObject instanceof EllipseShape) {
-            this.target = new BorderableEllipseShape((EllipseShape) targetObject);
-        } else if (targetObject instanceof LineShape) { // [!] 新增
-            this.target = new BorderableLineShape((LineShape) targetObject);
-        } else {
-            throw new IllegalArgumentException("Target object does not support border/line modifications.");
-        }
-        
-        // 记录旧状态
-        this.oldColor = target.getLineColor(); // 先尝试获取线条色
-        if (this.oldColor == null) { // 如果是图形，则获取边框色
-            this.oldColor = target.getBorderColor();
-        }
-        this.oldWidth = target.getStrokeWidth(); // 先尝试获取线条粗细
-        if (this.oldWidth == 0.0f) { // 如果是图形，则获取边框粗细
-             this.oldWidth = target.getBorderWidth();
-        }
-        this.oldStyle = target.getBorderStyle();
-        
-        // 记录新状态
+    // 完整的保存“之前”和“之后”的状态
+    private final Color oldColor, newColor;
+    private final double oldWidth, newWidth;
+    private final int oldStyle, newStyle;
+
+    /**
+     * 构造函数，用于创建一个边框/线条属性变更的命令。
+     * @param target 目标对象 (必须是 RectangleShape, EllipseShape, 或 LineShape)
+     * @param newColor 新的颜色
+     * @param newWidth 新的宽度
+     * @param newStyle 新的线型
+     */
+    public ChangeBorderCommand(Object target, Color newColor, double newWidth, int newStyle) {
+        this.targetObject = target;
+
+        // [DEBUG] 添加调试信息
+        System.out.println("\n--- 【调试】ChangeBorderCommand: 构造函数被调用 ---");
+        System.out.println("【调试】-> 传入的 newWidth 是: " + newWidth);
+
+        // 明确地保存传入的“新状态”
         this.newColor = newColor;
         this.newWidth = newWidth;
         this.newStyle = newStyle;
+
+        // 根据对象类型，从对象中安全地读取并保存“旧状态”
+        if (target instanceof RectangleShape) {
+            RectangleShape r = (RectangleShape) target;
+            this.oldColor = r.getBorderColor();
+            this.oldWidth = r.getBorderWidth();
+            this.oldStyle = r.getBorderStyle();
+        } else if (target instanceof EllipseShape) {
+            EllipseShape e = (EllipseShape) target;
+            this.oldColor = e.getBorderColor();
+            this.oldWidth = e.getBorderWidth();
+            this.oldStyle = e.getBorderStyle();
+        } else if (target instanceof LineShape) {
+            LineShape l = (LineShape) target;
+            this.oldColor = l.getLineColor();
+            this.oldWidth = l.getStrokeWidth(); // LineShape 使用 float, 但可以安全转为 double
+            this.oldStyle = l.getBorderStyle();
+        } else {
+            throw new IllegalArgumentException("目标对象不支持边框/线条属性的修改。");
+        }
+        
+        // [DEBUG] 添加调试信息
+        System.out.println("【调试】-> 从对象读取并保存的 oldWidth 是: " + this.oldWidth);
+        System.out.println("--- 【调试】ChangeBorderCommand: 构造完毕 ---\n");
     }
 
     @Override
     public void execute() {
-        if (target instanceof BorderableLineShape) {
-            target.setLineColor(newColor);
-            target.setStrokeWidth((float)newWidth);
-            target.setBorderStyle(newStyle);
-        } else { // RectangleShape 或 EllipseShape
-            target.setBorderColor(newColor);
-            target.setBorderWidth(newWidth);
-            target.setBorderStyle(newStyle);
+        // [DEBUG] 添加调试信息
+        System.out.println("【调试】ChangeBorderCommand: 执行 execute(), 将宽度设置为 " + this.newWidth);
+        
+        // 根据对象类型，应用“新状态”
+        if (targetObject instanceof RectangleShape) {
+            RectangleShape r = (RectangleShape) targetObject;
+            r.setBorderColor(newColor);
+            r.setBorderWidth(newWidth);
+            r.setBorderStyle(newStyle);
+        } else if (targetObject instanceof EllipseShape) {
+            EllipseShape e = (EllipseShape) targetObject;
+            e.setBorderColor(newColor);
+            e.setBorderWidth(newWidth);
+            e.setBorderStyle(newStyle);
+        } else if (targetObject instanceof LineShape) {
+            LineShape l = (LineShape) targetObject;
+            l.setLineColor(newColor);
+            l.setStrokeWidth((float) newWidth); // 从 double 转回 float
+            l.setBorderStyle(newStyle);
         }
     }
 
     @Override
     public void undo() {
-        if (target instanceof BorderableLineShape) {
-            target.setLineColor(oldColor);
-            target.setStrokeWidth((float)oldWidth);
-            target.setBorderStyle(oldStyle);
-        } else { // RectangleShape 或 EllipseShape
-            target.setBorderColor(oldColor);
-            target.setBorderWidth(oldWidth);
-            target.setBorderStyle(oldStyle);
+        // [DEBUG] 添加调试信息
+        System.out.println("【调试】ChangeBorderCommand: 执行 undo(), 将宽度恢复为 " + this.oldWidth);
+
+        // 根据对象类型，恢复“旧状态”
+        if (targetObject instanceof RectangleShape) {
+            RectangleShape r = (RectangleShape) targetObject;
+            r.setBorderColor(oldColor);
+            r.setBorderWidth(oldWidth);
+            r.setBorderStyle(oldStyle);
+        } else if (targetObject instanceof EllipseShape) {
+            EllipseShape e = (EllipseShape) targetObject;
+            e.setBorderColor(oldColor);
+            e.setBorderWidth(oldWidth);
+            e.setBorderStyle(oldStyle);
+        } else if (targetObject instanceof LineShape) {
+            LineShape l = (LineShape) targetObject;
+            l.setLineColor(oldColor);
+            l.setStrokeWidth((float) oldWidth); // 从 double 转回 float
+            l.setBorderStyle(oldStyle);
         }
-    }
-
-    // --- 适配器类 ---
-    private static class BorderableRectangleShape implements Borderable {
-        private RectangleShape rect;
-        BorderableRectangleShape(RectangleShape rect) { this.rect = rect; }
-        public void setBorderColor(Color c) { rect.setBorderColor(c); }
-        public Color getBorderColor() { return rect.getBorderColor(); }
-        public void setBorderWidth(double w) { rect.setBorderWidth(w); }
-        public double getBorderWidth() { return rect.getBorderWidth(); }
-        public void setBorderStyle(int s) { rect.setBorderStyle(s); }
-        public int getBorderStyle() { return rect.getBorderStyle(); }
-        
-        // 直线特有的方法，对于矩形，这些方法是空的
-        public void setLineColor(Color c) { }
-        public Color getLineColor() { return null; }
-        public void setStrokeWidth(float w) { }
-        public float getStrokeWidth() { return 0.0f; }
-    }
-    
-    private static class BorderableEllipseShape implements Borderable {
-        private EllipseShape ellipse;
-        BorderableEllipseShape(EllipseShape ellipse) { this.ellipse = ellipse; }
-        public void setBorderColor(Color c) { ellipse.setBorderColor(c); }
-        public Color getBorderColor() { return ellipse.getBorderColor(); }
-        public void setBorderWidth(double w) { ellipse.setBorderWidth(w); }
-        public double getBorderWidth() { return ellipse.getBorderWidth(); }
-        public void setBorderStyle(int s) { ellipse.setBorderStyle(s); }
-        public int getBorderStyle() { return ellipse.getBorderStyle(); }
-
-        // 直线特有的方法，对于椭圆，这些方法是空的
-        public void setLineColor(Color c) { }
-        public Color getLineColor() { return null; }
-        public void setStrokeWidth(float w) { }
-        public float getStrokeWidth() { return 0.0f; }
-    }
-    
-    private static class BorderableLineShape implements Borderable {
-        private LineShape line;
-        BorderableLineShape(LineShape line) { this.line = line; }
-        
-        // 矩形/椭圆的边框方法，对于直线，它们映射到线条属性
-        public void setBorderColor(Color c) { line.setLineColor(c); } // 映射到 LineColor
-        public Color getBorderColor() { return line.getLineColor(); }
-        public void setBorderWidth(double w) { line.setStrokeWidth((float)w); } // 映射到 StrokeWidth
-        public double getBorderWidth() { return line.getStrokeWidth(); }
-        public void setBorderStyle(int s) { line.setBorderStyle(s); }
-        public int getBorderStyle() { return line.getBorderStyle(); }
-        
-        // 直线特有的方法
-        public void setLineColor(Color c) { line.setLineColor(c); }
-        public Color getLineColor() { return line.getLineColor(); }
-        public void setStrokeWidth(float w) { line.setStrokeWidth(w); }
-        public float getStrokeWidth() { return line.getStrokeWidth(); }
     }
 }
