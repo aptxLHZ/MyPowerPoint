@@ -36,24 +36,16 @@ import javax.swing.JTextArea;
 import javax.swing.JTextPane;
 import javax.swing.JViewport;
 import javax.swing.SwingUtilities;
-import javax.swing.JTextArea;
-import javax.swing.JScrollPane;
-
 
 import javax.swing.AbstractAction; // [!] 新增
 import javax.swing.ActionMap;      // [!] 新增
-import javax.swing.ImageIcon;
 import javax.swing.InputMap;       // [!] 新增
 import javax.swing.JComponent;     // [!] 新增
 import javax.swing.KeyStroke;      // [!] 新增
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.datatransfer.Clipboard;
-import java.awt.datatransfer.StringSelection;
-import java.awt.datatransfer.Transferable;
-import java.awt.datatransfer.UnsupportedFlavorException;
 
-import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -75,12 +67,11 @@ import com.myppt.commands.ChangeFontCommand;
 import com.myppt.commands.ChangeBorderCommand;
 import com.myppt.commands.ChangeOpacityCommand;
 
-import org.apache.pdfbox.pdmodel.PDDocument; // [!] 新增
-import org.apache.pdfbox.pdmodel.PDPage;     // [!] 新增
-import org.apache.pdfbox.pdmodel.common.PDRectangle; // [!] 新增
-import org.apache.pdfbox.pdmodel.PDPageContentStream; // [!] 新增 (用于绘制，但暂时不会完整使用)
-import java.io.BufferedReader; // [!] 新增
-import java.io.InputStreamReader; // [!] 新增
+import org.apache.pdfbox.pdmodel.PDDocument; 
+import org.apache.pdfbox.pdmodel.PDPage;     
+import org.apache.pdfbox.pdmodel.common.PDRectangle; 
+import java.io.BufferedReader; 
+import java.io.InputStreamReader; 
 
 /**
  * 应用程序的主控制器，负责协调各个部分。
@@ -103,7 +94,7 @@ public class AppController {
     private float opacityBeforeChange; 
     private JSlider opacitySlider; 
     private AbstractSlideObject clipboardObject = null; // [!] 新增: 内部剪贴板，用于存储深拷贝的对象
-    private Clipboard systemClipboard; // [!] 新增: 系统剪贴板的引用
+    
     private int pasteOffset = 0; // [!] 新增: 记录粘贴的累计偏移量
     private static final String AUTOSAVE_DIR_NAME = ".autosave"; // [!] 新增: 自动保存目录名
     private static final String AUTOSAVE_FILE_NAME = AUTOSAVE_DIR_NAME + File.separator + "current.myppt.tmp"; // [!] 修改: 完整文件路径
@@ -111,7 +102,6 @@ public class AppController {
     private Timer autosaveTimer; // [!] 新增
 
     public AppController(Presentation presentation, MainFrame mainFrame) {
-        systemClipboard = Toolkit.getDefaultToolkit().getSystemClipboard(); // [!] 初始化
         
         this.presentation = presentation;
         this.mainFrame = mainFrame;
@@ -1027,6 +1017,9 @@ public class AppController {
         }
     }
     
+    /**
+     * 插入图片，现在将图片数据嵌入到PPT文件中。
+     */
     private void insertImage() {
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setDialogTitle("请选择一张图片");
@@ -1038,23 +1031,25 @@ public class AppController {
             }
             public String getDescription() { return "图片文件 (*.jpg, *.png, *.gif)"; }
         });
-        int result = fileChooser.showOpenDialog(mainFrame);
-        if (result == JFileChooser.APPROVE_OPTION) {
+        int userSelection = fileChooser.showOpenDialog(mainFrame);
+
+        if (userSelection == JFileChooser.APPROVE_OPTION) {
             File selectedFile = fileChooser.getSelectedFile();
             try {
-                ImageObject imageObj = new ImageObject(100, 100, selectedFile.getAbsolutePath());
+                // [!] 核心修改: 读取整个文件为字节数组
+                byte[] imageData = java.nio.file.Files.readAllBytes(selectedFile.toPath());
                 
-                // [!] 核心修改: 不再直接 addObject
-                // presentation.getSlides().get(0).addObject(imageObj);
+                // [!] 核心修改: 使用字节数组构造 ImageObject
+                ImageObject imageObj = new ImageObject(100, 100, imageData);
                 
-                // 而是通过命令来执行
                 Command command = new AddObjectCommand(presentation.getCurrentSlide(), imageObj);
                 undoManager.executeCommand(command);
                 
                 markAsDirty();
-                updateUI(); // updateUI 内部包含了 repaint
+                updateUI();
             } catch (IOException ex) {
-                JOptionPane.showMessageDialog(mainFrame, "无法加载图片文件: " + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(mainFrame, "无法读取图片文件或创建对象: " + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+                ex.printStackTrace();
             }
         }
     }

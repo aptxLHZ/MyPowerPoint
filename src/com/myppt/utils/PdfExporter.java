@@ -24,7 +24,6 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 
 import javax.swing.JPanel;
 
@@ -281,27 +280,28 @@ public class PdfExporter {
 
     /** ———————————————— 绘制图片 ———————————————— **/
     private void drawImageObject(ImageObject imgObj) throws IOException {
-        if (imgObj.getImagePath() == null) return;
-
-        File img = new File(imgObj.getImagePath());
-        if (!img.exists()) return;
-
-        PDImageXObject image = PDImageXObject.createFromFile(img.getAbsolutePath(), document);
+        // [!] 核心修改: 从 imgObj 的 imageData 获取字节数据
+        if (imgObj.getImageData() == null || imgObj.getImageData().length == 0) { // [!] 检查 imageData
+            System.err.println("警告: 图像对象没有嵌入数据，无法导出PDF。");
+            return;
+        }
+        
+        // [!] 核心修改: 从字节数组创建 PDImageXObject
+        PDImageXObject pdImage = PDImageXObject.createFromByteArray(document, imgObj.getImageData(), null); // null for image name
 
         contentStream.saveGraphicsState();
-
         PDExtendedGraphicsState gs = new PDExtendedGraphicsState();
         gs.setNonStrokingAlphaConstant(imgObj.getOpacity());
+        gs.setStrokingAlphaConstant(imgObj.getOpacity());
         contentStream.setGraphicsStateParameters(gs);
 
-        float x = imgObj.getX();
-        float y = mediaBox.getHeight() - imgObj.getY() - imgObj.getBounds().height;
-
-        contentStream.drawImage(image, x, y, imgObj.getBounds().width, imgObj.getBounds().height);
-
+        contentStream.drawImage(pdImage, 
+                                imgObj.getX(), 
+                                mediaBox.getHeight() - (imgObj.getY() + imgObj.getBounds().height),
+                                imgObj.getBounds().width, 
+                                imgObj.getBounds().height);
         contentStream.restoreGraphicsState();
     }
-
 
     private PDColor toPdfColor(Color c) {
         return new PDColor(new float[] {

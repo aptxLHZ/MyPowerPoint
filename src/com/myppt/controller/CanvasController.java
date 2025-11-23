@@ -36,23 +36,6 @@ public class CanvasController extends MouseAdapter {
             handleFormatPainterClick(e);
             return;
         }
-
-        // --- 原有的策略模式分发逻辑 ---
-        Point worldPoint = appController.convertScreenToWorld(e.getPoint());
-
-        // if (!appController.isPointInPage(worldPoint)) {
-        //     // 如果不在页面内，清空选择并刷新UI
-        //     // 这里不再调用 deselectAllObjects()，因为那会触发 updatePropertiesPanel()
-        //     // 且仅在 FORMAT_PAINTER 模式下才需要特殊处理
-        //     if (!appController.getCurrentMode().equals("FORMAT_PAINTER")) {
-        //         appController.setSelectedObject(null);
-        //         appController.updatePropertiesPanel();
-        //     }
-        //     mainFrame.getCanvasPanel().repaint();
-        //     appController.repaintThumbnails();
-        //     return;
-        // }
-
         appController.getCurrentStrategy().mousePressed(e);
     }
 
