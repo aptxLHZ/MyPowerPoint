@@ -107,7 +107,7 @@ public class AppController {
     private int pasteOffset = 0; // [!] 新增: 记录粘贴的累计偏移量
     private static final String AUTOSAVE_DIR_NAME = ".autosave"; // [!] 新增: 自动保存目录名
     private static final String AUTOSAVE_FILE_NAME = AUTOSAVE_DIR_NAME + File.separator + "current.myppt.tmp"; // [!] 修改: 完整文件路径
-    private static final long AUTOSAVE_INTERVAL_MS = 5 * 1000; // 5秒自动保存一次
+    private static final long AUTOSAVE_INTERVAL_MS = 2 * 1000; // 2秒自动保存一次
     private Timer autosaveTimer; // [!] 新增
 
     public AppController(Presentation presentation, MainFrame mainFrame) {
