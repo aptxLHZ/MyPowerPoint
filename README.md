@@ -178,7 +178,7 @@ MyPowerPoint Project
        javac -d bin -sourcepath src -classpath "lib/*" src/com/myppt/App.java
        ```
      
-     * **macOS / Linux**: (注意 `-classpath` 中的路径分隔符是 `:` )
+     * **macOS / Linux**: 
        
        ```bash
        javac -d bin -sourcepath src -classpath "lib/*" src/com/myppt/App.java
@@ -196,10 +196,10 @@ MyPowerPoint Project
        java -classpath "bin;lib/*" com.myppt.App
        ```
      
-     * **macOS / Linux**: 
+     * **macOS / Linux**: (注意：gitbash ≠ linux，**若使用的gitbash命令行，请用上方Windows版本命令**)
        
        ```bash
-       java -classpath "bin;lib/*" com.myppt.App
+       java -classpath "bin:lib/*" com.myppt.App
        ```
    
    * MyPPT 成功启动，**提示自动回复未保存文件**，这也是本项目亮点之一。
@@ -242,5 +242,3 @@ MyPowerPoint Project
 ---
 
 **感谢您查阅本项目！希望您在使用 MyPPT 软件的过程中获得愉快的体验！**
-
-

@@ -53,7 +53,10 @@ public class TextBox extends AbstractSlideObject {
                 maxWidth = currentWidth;
             }
         }
-        this.width = maxWidth > 0 ? maxWidth : 30; // 保证有个最小宽度
+        // [修改] 关键修复：增加 10px 的安全内边距。
+        // 如果不加这个边距，计算出的宽度会“刚好”卡在文字边缘，导致渲染引擎误判需要换行。
+        // 加上后，既能保证是“包裹”状态，又能防止意外换行。
+        this.width = maxWidth > 0 ? maxWidth+10 : 30; // 保证有个最小宽度
         this.height = lines.length * fm.getHeight();
     }
 
@@ -203,10 +206,9 @@ public class TextBox extends AbstractSlideObject {
 
     public void setFont(Font font) {
         this.font = font;
-        // [!] 核心修复: 字体改变后，立即重新计算自然边界
+        // [修改] 字体改变后，调用该方法会将宽度重置为“适应当前字体大小的最小包裹宽度”
         calculateNaturalBounds();
-        // 并且，如果之前有缩放，要确保新的高度也符合缩放的宽度
-        // 所以，这里还需要再次调用 updateHeightForWidth，确保高度匹配当前宽度
+        // 紧接着根据上面计算出的新宽度，精确计算高度（确保与 draw 方法中的换行逻辑一致）
         updateHeightForWidth(this.width);
     }
 

@@ -108,6 +108,10 @@ public class ActionHandler {
     }
 
     public void playPresentation(boolean fromStart) {
+        // 播放前取消所有选中状态，防止播放时显示虚线框和控制点
+        controller.setSelectedObject(null);
+        controller.getUiUpdater().updatePropertiesPanel(); // 更新属性面板状态
+        controller.getMainFrame().getCanvasPanel().repaint(); // 重绘编辑区，让用户看到选中框消失
         Presentation presentation = controller.getPresentation();
         if (fromStart) {
             presentation.setCurrentSlideIndex(0);
