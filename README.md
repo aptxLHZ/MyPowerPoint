@@ -5,8 +5,7 @@
 
 所有代码由我个人完成，拒绝抄袭，下方为github仓库以及完善整个架构的所有git提交。
 
-**GitHub仓库**: [https://github.com/aptxLHZ/MyPowerPoint](https://github.com/aptxLHZ/MyPowerPoint)
-**Commit 历史**: [https://github.com/aptxLHZ/MyPowerPoint/commits/main/](https://github.com/aptxLHZ/MyPowerPoint/commits/main/)
+**GitHub仓库**: [https://github.com/aptxLHZ/MyPowerPoint](https://github.com/aptxLHZ/MyPowerPoint) <br>**Commit 历史**: [https://github.com/aptxLHZ/MyPowerPoint/commits/main/](https://github.com/aptxLHZ/MyPowerPoint/commits/main/)
 
 ---
 
