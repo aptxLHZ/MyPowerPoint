@@ -7,6 +7,8 @@
 
 **GitHub仓库**: [https://github.com/aptxLHZ/MyPowerPoint](https://github.com/aptxLHZ/MyPowerPoint) <br>**Commit 历史**: [https://github.com/aptxLHZ/MyPowerPoint/commits/main/](https://github.com/aptxLHZ/MyPowerPoint/commits/main/)
 
+**功能演示已录制成视频，由于CG上传限制，已通过QQ私发给老师，请老师查收。**
+
 ---
 
 ## 项目代码架构简介
@@ -75,9 +77,8 @@ MyPowerPoint Project
 │               ├── ThumbnailPanel.java      // 左侧缩略图列表容器。
 │               ├── SlideThumbnail.java      // 单个缩略图组件。
 │               └── PlayerFrame.java         // 全屏播放模式的窗口。
-│
-└── main/resources/
-    └── help.html   // 帮助文档的 HTML 内容。
+
+└── help.html   // 帮助文档的 HTML 内容。
 ```
 
 ---
@@ -187,12 +188,14 @@ MyPowerPoint Project
        
        ```bash
        javac -d bin -sourcepath src -classpath "lib/*" src/com/myppt/App.java
+       copy "src\help.html" "bin\"
        ```
      
      * **macOS / Linux**: 
        
        ```bash
        javac -d bin -sourcepath src -classpath "lib/*" src/com/myppt/App.java
+       cp src/help.html bin/
        ```
    
    * 如果编译成功，控制台通常不会有任何输出（或仅有警告）。您可以检查 `bin/com/myppt/App.class` 文件是否已生成。
@@ -251,9 +254,12 @@ MyPowerPoint Project
 |               | 11.删除功能增强                          | ✅ **已完成**  | - 实现了**快捷键 (Delete/Backspace) 删除**和**右键菜单删除**两种方式。<br>- **细节**: 删除后，撤销能将对象**恢复到原始图层顺序**。                                                                                                                                                                                                        |
 |               | 12.高级交互架构                          | ✅ **已完成**  | - 使用了**策略模式 (Strategy Pattern)** 重构了控制器，将“选择”、“绘制”等不同交互逻辑解耦到独立的策略类中，代码结构清晰、极易扩展。                                                                                                                                                                                                                |
 |               | 13.可交互属性栏UI                        | ✅ **已完成**  | - **属性面板**: 能够根据当前选中对象的类型，**动态显示/隐藏/启用/禁用**相应的属性控件，使界面保持简洁和相关性。<br>- **鼠标光标**: 实现了当鼠标悬停在控制点上时，光标**自动变为对应的缩放箭头**。                                                                                                                                                                                |
-|               | 14.**用户使用说明**                      | ✅ **已完成**  | - 通过“帮助 -> 使用说明”菜单弹出。<br>- 内容**详尽全面**，涵盖大部分功能和快捷键。<br>- 使用 **HTML 格式渲染**，排版美观，突出项目亮点。                                                                                                                                                                                                           |
-|               | 15.**已开源至github**                  | ✅ **已完成**  | - 已将项目完整开源至[https://github.com/aptxLHZ/MyPowerPoint](https://github.com/aptxLHZ/MyPowerPoint)  <br>- 欢迎批评指正 <br>- 记得 star  ，谢谢！                                                                                                                                                                 |
+|               | 14.**视图自适应**                       | ✅ **已完成**  | - **智能缩放算法**: 点击“重置视图”时，自动计算窗口尺寸与页面比例，实现一键居中并最大化显示。<br>- 无限漫游: 基于虚拟巨大画布技术，支持**编辑区上下左右自由滑动/滚动**。<br>- 体验优化: 完美解决窗口拉伸后内容显示过大或过小的问题。                                                                                                                                   |
+|               | 15.**用户使用说明**                      | ✅ **已完成**  | - 通过“帮助 -> 使用说明”菜单弹出。<br>- 内容**详尽全面**，涵盖大部分功能和快捷键。<br>- 使用 **HTML 格式渲染**，排版美观，突出项目亮点。                                                                                                                                                                                                           |
+|               | 16.**已开源至github**                  | ✅ **已完成**  | - 已将项目完整开源至[https://github.com/aptxLHZ/MyPowerPoint](https://github.com/aptxLHZ/MyPowerPoint)  <br>- 欢迎批评指正 <br>- 记得 star  ，谢谢！                                                                                                                                                                 |
 
 ---
 
 **感谢您查阅本项目！希望您在使用 MyPPT 软件的过程中获得愉快的体验！**
+
+

@@ -170,8 +170,8 @@ public class ActionHandler {
     }
 
     public void showHelpDialog() {
-         StringBuilder helpHtml = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(getClass().getResourceAsStream("/main/resources/help.html"), "UTF-8"))) {
+        StringBuilder helpHtml = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(getClass().getResourceAsStream("/help.html"), "UTF-8"))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 helpHtml.append(line).append("\n");
